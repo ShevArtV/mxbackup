@@ -1,0 +1,30 @@
+<?php
+$xpdo_meta_map['mxBackupRun'] = [
+    'package'=>'mxbackup', 'version'=>'1.1', 'table'=>'mxbackup_run', 'extends'=>'xPDOSimpleObject',
+    'fields'=>[
+        'profile'=>'','mode'=>'prod','status'=>'running','storage_path'=>null,'archive_path'=>null,
+        'archive_size'=>0,'archive_checksum'=>'','manifest_json'=>null,'report_json'=>null,
+        'email_sent'=>0,'error'=>null,'startedon'=>0,'completedon'=>0,
+    ],
+    'fieldMeta'=>[
+        'profile'=>['dbtype'=>'varchar','precision'=>'100','phptype'=>'string','null'=>false,'default'=>'','index'=>'index'],
+        'mode'=>['dbtype'=>'varchar','precision'=>'20','phptype'=>'string','null'=>false,'default'=>'prod','index'=>'index'],
+        'status'=>['dbtype'=>'varchar','precision'=>'20','phptype'=>'string','null'=>false,'default'=>'running','index'=>'index'],
+        'storage_path'=>['dbtype'=>'text','phptype'=>'string','null'=>true],
+        'archive_path'=>['dbtype'=>'text','phptype'=>'string','null'=>true],
+        'archive_size'=>['dbtype'=>'int','precision'=>'20','attributes'=>'unsigned','phptype'=>'integer','null'=>false,'default'=>0],
+        'archive_checksum'=>['dbtype'=>'char','precision'=>'64','phptype'=>'string','null'=>false,'default'=>''],
+        'manifest_json'=>['dbtype'=>'mediumtext','phptype'=>'json','null'=>true],
+        'report_json'=>['dbtype'=>'mediumtext','phptype'=>'json','null'=>true],
+        'email_sent'=>['dbtype'=>'tinyint','precision'=>'1','attributes'=>'unsigned','phptype'=>'boolean','null'=>false,'default'=>0],
+        'error'=>['dbtype'=>'mediumtext','phptype'=>'string','null'=>true],
+        'startedon'=>['dbtype'=>'int','precision'=>'20','attributes'=>'unsigned','phptype'=>'integer','null'=>false,'default'=>0,'index'=>'index'],
+        'completedon'=>['dbtype'=>'int','precision'=>'20','attributes'=>'unsigned','phptype'=>'integer','null'=>false,'default'=>0],
+    ],
+    'indexes'=>[
+        'profile'=>['alias'=>'profile','primary'=>false,'unique'=>false,'type'=>'BTREE','columns'=>['profile'=>['length'=>'','collation'=>'A','null'=>false]]],
+        'mode'=>['alias'=>'mode','primary'=>false,'unique'=>false,'type'=>'BTREE','columns'=>['mode'=>['length'=>'','collation'=>'A','null'=>false]]],
+        'status'=>['alias'=>'status','primary'=>false,'unique'=>false,'type'=>'BTREE','columns'=>['status'=>['length'=>'','collation'=>'A','null'=>false]]],
+        'startedon'=>['alias'=>'startedon','primary'=>false,'unique'=>false,'type'=>'BTREE','columns'=>['startedon'=>['length'=>'','collation'=>'A','null'=>false]]],
+    ],
+];

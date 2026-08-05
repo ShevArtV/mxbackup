@@ -1,0 +1,5 @@
+mxBackup 1.0.0-beta (2026-08-05)
+=================================
+- Первый публичный выпуск для MODX Revolution 2.
+- Production- и обезличенные development-бэкапы файлов и MySQL.
+- CLI, manager UI, профили, правила, история, retention и email-отчёты.

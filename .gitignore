@@ -1,0 +1,15 @@
+/.idea/
+/.release/
+/.vscode/
+/.codegraph/
+/vendor/
+/composer.lock
+/.phpunit.result.cache
+/core/packages/
+*.log
+*.key
+.DS_Store
+
+# Конфигурация и архивы конкретного сайта не входят в пакет.
+/core/config/mxbackup.php
+/backups/

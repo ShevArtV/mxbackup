@@ -1,0 +1,85 @@
+# mxBackup
+
+`mxBackup` — бесплатный пакет резервного копирования для MODX Revolution 2. Он
+создаёт архив файлов сайта и SQL-дамп базы данных из CLI, cron или manager,
+сохраняет manifest и историю запусков.
+
+Пакет поддерживает два готовых профиля:
+
+- `prod` — полная аварийная копия без изменения данных;
+- `dev` — обезличенная копия для разработки: сессии удаляются, персональные
+  данные MODX и miniShop2 заменяются стабильными тестовыми значениями.
+
+Требования: MODX 2.6–2.8, PHP 7.4+, MySQL/MariaDB и PDO MySQL. Для ZIP нужен
+`ext-zip`, для `tar.gz` — `Phar` и `zlib`.
+
+## Установка
+
+Установите transport-пакет через «Пакеты → Установщик» в MODX. После установки
+в меню «Пакеты» появится mxBackup, а в базе будут созданы профили `prod` и `dev`.
+
+По умолчанию архивы сохраняются в каталоге `backups` рядом с webroot. Путь
+внутри webroot, `core`, кэша или корня файловой системы отклоняется до запуска.
+
+## CLI и cron
+
+```bash
+php core/components/mxbackup/cli/mxbackup.php validate-config
+php core/components/mxbackup/cli/mxbackup.php dry-run --profile=dev
+php core/components/mxbackup/cli/mxbackup.php backup --profile=prod
+php core/components/mxbackup/cli/mxbackup.php cleanup
+```
+
+Пример cron для ежедневной production-копии в 03:15:
+
+```cron
+15 3 * * * /usr/bin/php /path/to/site/core/components/mxbackup/cli/mxbackup.php backup --profile=prod --no-mail
+```
+
+Доступные параметры: `--profile`, `--storage-path`, `--config`,
+`--format=tar.gz|zip`, `--mail-to`, `--no-mail`, `--verbose`.
+
+Приоритет конфигурации: CLI → внешний PHP-файл → профиль в БД → системные
+настройки MODX → встроенные значения. Пример внешнего файла:
+[`config.example.php`](core/components/mxbackup/docs/config.example.php).
+
+## Безопасность dev-копий
+
+Стандартное маскирование покрывает пользователей и профили MODX, сессии,
+заказы, адреса и клиентские профили miniShop2, а также типовые поля `email`,
+`phone`, `password`, `token`, `secret` и `api_key`. Маскирование детерминировано:
+связанные тестовые записи остаются узнаваемыми между таблицами.
+
+Dev-режим работает по принципу fail-closed: если схема известной чувствительной
+таблицы изменилась и обязательные поля невозможно обработать, архив не создаётся.
+Для собственных таблиц добавьте правила в manager и сначала выполните dry-run.
+
+Production-архив может содержать пароли и API-ключи из конфигурации сайта. Не
+размещайте каталог хранения в публичной части сайта и ограничьте права доступа.
+Email по умолчанию выключен; большие архивы к письму не прикладываются.
+
+## Возможности и ограничения 1.0
+
+- форматы ZIP и `tar.gz`;
+- include/exclude-правила для файлов и таблиц;
+- стандартные и пользовательские правила маскирования, включая JSON path;
+- блокировка параллельных запусков, атомарная публикация архива и checksum;
+- retention по возрасту и количеству, email-отчёт, история запусков в CMP;
+- consistent snapshot для транзакционных таблиц и предупреждения для остальных.
+
+В первой версии нет восстановления, S3/FTP/WebDAV, шифрования и очереди.
+Большие копии запускайте через CLI/cron: веб-запуск зависит от таймаутов PHP и
+reverse proxy.
+
+## Разработка
+
+```bash
+composer install
+vendor/bin/phpunit
+find core assets modxbuilder tests -name '*.php' -print0 | xargs -0 -n1 php -l
+php modxbuilder/mxbackup/build/build.package.php
+```
+
+Архитектура и границы первой версии описаны в
+[`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md). Пакет распространяется по
+лицензии GPL-2.0-or-later.
