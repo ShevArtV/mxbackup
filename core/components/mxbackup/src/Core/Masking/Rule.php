@@ -34,6 +34,7 @@ final class Rule
         return $column === null || $this->column === '*' || fnmatch($this->column, $column);
     }
 
+    public function getTable() { return $this->table; }
     public function getColumn() { return $this->column; }
     public function getAction() { return $this->action; }
     public function getValue() { return $this->value; }

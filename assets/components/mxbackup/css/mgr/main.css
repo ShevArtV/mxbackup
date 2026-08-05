@@ -1,5 +1,23 @@
-.mxbackup-actions { margin-bottom: 12px; }
-.mxbackup-actions .x-btn { margin-right: 8px; }
-.mxbackup-note { color: #666; line-height: 1.5; margin: 8px 0 14px; }
+.mxbackup-hero { background: linear-gradient(135deg,#153f45,#246d75); border-radius: 8px; color: #fff; margin-bottom: 12px; padding: 20px 24px; }
+.mxbackup-hero h2 { color: #fff; font-size: 24px; margin: 0 0 6px; }
+.mxbackup-hero p { color: rgba(255,255,255,.86); line-height: 1.5; margin: 0; }
+.mxbackup-actions { background: #fff; border: 1px solid #dfe5e7 !important; border-radius: 6px; margin-bottom: 16px; padding: 12px 14px; }
+.mxbackup-actions .x-btn { margin-left: 8px; }
+.mxbackup-tabs .x-tab-panel-body { background: #fff; }
+.mxbackup-toggle { border-radius: 12px; cursor: pointer; display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; }
+.mxbackup-toggle.on { background: #e2f3e8; color: #247a43; }
+.mxbackup-toggle.off { background: #f3e7e7; color: #9a4545; }
+.mxbackup-badge { border-radius: 12px; display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; }
+.mxbackup-badge.success { background: #e2f3e8; color: #247a43; }
+.mxbackup-badge.info { background: #e2eff7; color: #286783; }
+.mxbackup-badge.warning { background: #f8ead8; color: #9a5d14; }
+.mxbackup-badge.muted { background: #edf0f1; color: #6f777a; }
+.mxbackup-report { max-height: 420px; overflow: auto; text-align: left; }
+.mxbackup-report-cards { display: flex; gap: 8px; margin-bottom: 14px; }
+.mxbackup-report-cards > div { background: #f3f6f7; border-radius: 5px; min-width: 90px; padding: 9px 12px; }
+.mxbackup-report-cards strong,.mxbackup-report-cards span { display: block; }
+.mxbackup-report-cards strong { color: #246d75; font-size: 20px; }
+.mxbackup-report-cards span { color: #6f777a; font-size: 11px; }
+.mxbackup-report-list { background: #f8fafb; border: 1px solid #e2e7e9; border-radius: 4px; line-height: 1.45; margin-bottom: 10px; max-height: 170px; overflow: auto; padding: 8px 10px; }
 .mxbackup-status-error { color: #b53b3b; font-weight: 600; }
 .mxbackup-status-success { color: #2d8a45; font-weight: 600; }

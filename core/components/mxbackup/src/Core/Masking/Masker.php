@@ -73,6 +73,23 @@ final class Masker
         }
     }
 
+    public function planTable($table, array $columnMeta)
+    {
+        $this->validateTable($table, $columnMeta);
+        if ($this->shouldTruncate($table)) {
+            return ['truncated' => true, 'columns' => []];
+        }
+        $columns = [];
+        foreach (array_keys($columnMeta) as $column) {
+            foreach ($this->rules as $rule) {
+                if ($rule->getAction() !== 'truncate' && $rule->matches($table, $column)) {
+                    $columns[$column] = $rule->getAction();
+                }
+            }
+        }
+        return ['truncated' => false, 'columns' => $columns];
+    }
+
     private function transform(Rule $rule, $column, $value, $seed, array $columnMeta)
     {
         $action = $rule->getAction();

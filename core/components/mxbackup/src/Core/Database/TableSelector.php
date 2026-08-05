@@ -6,7 +6,6 @@ final class TableSelector
 {
     public function select(array $tables, array $include, array $exclude)
     {
-        $include = $include ?: ['*'];
         $selected = [];
         foreach ($tables as $table) {
             if (!$this->matchesAny($table, $include) || $this->matchesAny($table, $exclude)) {

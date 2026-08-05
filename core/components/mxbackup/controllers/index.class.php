@@ -30,6 +30,7 @@ class mxBackupIndexManagerController extends modExtraManagerController
         $this->addJavascript($this->assetsUrl . 'js/mgr/mxbackup.js' . $version('js/mgr/mxbackup.js'));
         $this->addLastJavascript($this->assetsUrl . 'js/mgr/widgets/home.panel.js' . $version('js/mgr/widgets/home.panel.js'));
         $this->addLastJavascript($this->assetsUrl . 'js/mgr/widgets/profile.grid.js' . $version('js/mgr/widgets/profile.grid.js'));
+        $this->addLastJavascript($this->assetsUrl . 'js/mgr/widgets/table.grid.js' . $version('js/mgr/widgets/table.grid.js'));
         $this->addLastJavascript($this->assetsUrl . 'js/mgr/widgets/rule.grid.js' . $version('js/mgr/widgets/rule.grid.js'));
         $this->addLastJavascript($this->assetsUrl . 'js/mgr/widgets/run.grid.js' . $version('js/mgr/widgets/run.grid.js'));
         $this->addLastJavascript($this->assetsUrl . 'js/mgr/widgets/settings.panel.js' . $version('js/mgr/widgets/settings.panel.js'));
@@ -37,6 +38,7 @@ class mxBackupIndexManagerController extends modExtraManagerController
             'connectorUrl' => $this->assetsUrl . 'connector.php',
             'canManage' => $this->modx->hasPermission('mxbackup_manage'),
             'canRun' => $this->modx->hasPermission('mxbackup_run'),
+            'defaultProfile' => $this->modx->getOption('mxbackup.default_profile', null, 'prod'),
         ]) . '; Ext.onReady(function(){MODx.add({xtype:"mxbackup-panel-home"});});</script>');
     }
 }

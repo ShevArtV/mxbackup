@@ -35,6 +35,9 @@ final class BackupRunnerTest extends TestCase
         self::assertSame('<?php echo "ok";', $zip->getFromName('site/index.php'));
         $manifest = json_decode($zip->getFromName('mxbackup-manifest.json'), true);
         self::assertSame('applied', $manifest['masking']);
+        self::assertSame(['modx_contacts'], $result->getReport()['stats']['table_names']);
+        self::assertSame(1, $result->getReport()['stats']['masked_columns']);
+        self::assertSame('mask', $result->getReport()['stats']['masking_tables']['modx_contacts']['columns']['email']);
         $zip->close();
 
         foreach (glob($storage . '/*') ?: [] as $file) @unlink($file);

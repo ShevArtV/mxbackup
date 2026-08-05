@@ -53,4 +53,21 @@ final class MaskerTest extends TestCase
         $this->expectException(\RuntimeException::class);
         $masker->validateTable('modx_users', ['id' => [], 'username' => []]);
     }
+
+    public function testDryRunPlanShowsMaskedColumnsAndTruncatedTables()
+    {
+        $masker = new Masker(StandardRules::rules(), null, StandardRules::requiredColumns());
+        $profileMeta = array_fill_keys(
+            ['internalKey','fullname','email','phone','mobilephone','address','city','zip','comment','extended'],
+            ['Null' => 'YES']
+        );
+        $profilePlan = $masker->planTable('modx_user_attributes', $profileMeta);
+        self::assertFalse($profilePlan['truncated']);
+        self::assertSame('mask', $profilePlan['columns']['email']);
+        self::assertSame('hide', $profilePlan['columns']['comment']);
+
+        $sessionPlan = $masker->planTable('modx_session', ['id'=>[], 'data'=>[]]);
+        self::assertTrue($sessionPlan['truncated']);
+        self::assertSame([], $sessionPlan['columns']);
+    }
 }

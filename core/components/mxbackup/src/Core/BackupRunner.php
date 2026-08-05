@@ -103,7 +103,35 @@ final class BackupRunner
                 isset($databaseConfig['exclude_tables']) ? $databaseConfig['exclude_tables'] : []
             );
             $report->set('tables', count($tables));
+            $report->set('table_names', $tables);
             $report->set('dry_run', (bool)$dryRun);
+
+            $rules = [];
+            if (!empty($profile['masking']['standard'])) {
+                $rules = StandardRules::rules();
+            }
+            $customRules = isset($profile['masking']['rules']) && is_array($profile['masking']['rules'])
+                ? $profile['masking']['rules'] : [];
+            $rules = array_merge($rules, (new RuleFactory())->createMany($customRules));
+            $masker = $mode === 'dev' ? new Masker($rules, null, StandardRules::requiredColumns()) : null;
+            $maskingPlan = [];
+            $maskedColumns = 0;
+            $truncatedTables = [];
+            if ($masker) {
+                foreach ($tables as $table) {
+                    $plan = $masker->planTable($table, $this->platform->database()->describeTable($table));
+                    if ($plan['truncated']) {
+                        $truncatedTables[] = $table;
+                    }
+                    if ($plan['truncated'] || $plan['columns']) {
+                        $maskingPlan[$table] = $plan;
+                    }
+                    $maskedColumns += count($plan['columns']);
+                }
+            }
+            $report->set('masking_tables', $maskingPlan);
+            $report->set('masked_columns', $maskedColumns);
+            $report->set('truncated_tables', $truncatedTables);
 
             if ($dryRun) {
                 $report->complete($this->platform->now());
@@ -117,14 +145,6 @@ final class BackupRunner
 
             $workspace = $this->storage->createWorkspace($storagePath);
             $sqlPath = $workspace . DIRECTORY_SEPARATOR . 'database.sql';
-            $rules = [];
-            if (!empty($profile['masking']['standard'])) {
-                $rules = StandardRules::rules();
-            }
-            $customRules = isset($profile['masking']['rules']) && is_array($profile['masking']['rules'])
-                ? $profile['masking']['rules'] : [];
-            $rules = array_merge($rules, (new RuleFactory())->createMany($customRules));
-            $masker = $mode === 'dev' ? new Masker($rules, null, StandardRules::requiredColumns()) : null;
             $databaseReport = (new DatabaseDumper($this->platform->database(), $masker))->dump(
                 $sqlPath,
                 $tables,
