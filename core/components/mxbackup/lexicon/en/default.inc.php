@@ -28,3 +28,27 @@ $_lang['mxbackup_invalid_json']='Invalid JSON.'; $_lang['mxbackup_builtin_profil
 $_lang['mxbackup_profile_not_found']='Profile not found.'; $_lang['mxbackup_invalid_target_type']='Invalid target type.'; $_lang['mxbackup_invalid_action']='Invalid action.';
 $_lang['mxbackup_rule_exists']='A custom rule already exists for this target.'; $_lang['mxbackup_invalid_column_target']='Column target must be table.column.'; $_lang['mxbackup_invalid_json_target']='JSON target must be table.column.path.'; $_lang['mxbackup_tables_load_error']='Could not load database tables.'; $_lang['mxbackup_table_not_found']='Table not found.'; $_lang['mxbackup_invalid_table_selection']='Invalid selected table list.'; $_lang['mxbackup_profile_save_error']='Could not save profile.'; $_lang['mxbackup_tables_saved']='Table selection saved.';
 $_lang['mxbackup_config_valid']='Configuration is valid.';
+
+$_lang['area_mxbackup_general'] = 'General';
+$_lang['area_mxbackup_mail'] = 'Email';
+$_lang['area_mxbackup_retention'] = 'Retention';
+$_lang['setting_mxbackup.storage_path'] = 'Archive directory';
+$_lang['setting_mxbackup.storage_path_desc'] = 'Absolute path outside the web root. Leave empty to use the backups directory next to the site root.';
+$_lang['setting_mxbackup.config_path'] = 'PHP configuration';
+$_lang['setting_mxbackup.config_path_desc'] = 'Absolute path to a PHP file returning the configuration array.';
+$_lang['setting_mxbackup.default_profile'] = 'Default profile';
+$_lang['setting_mxbackup.default_profile_desc'] = 'Usually prod or dev.';
+$_lang['setting_mxbackup.archive_format'] = 'Archive format';
+$_lang['setting_mxbackup.archive_format_desc'] = 'tar.gz or zip.';
+$_lang['setting_mxbackup.mail_enabled'] = 'Send email';
+$_lang['setting_mxbackup.mail_enabled_desc'] = 'Disabled by default because production archives can contain sensitive data.';
+$_lang['setting_mxbackup.mail_to'] = 'Recipients';
+$_lang['setting_mxbackup.mail_to_desc'] = 'Comma-separated email addresses.';
+$_lang['setting_mxbackup.mail_max_attachment_mb'] = 'Attachment limit, MB';
+$_lang['setting_mxbackup.mail_max_attachment_mb_desc'] = 'Larger archives remain local; the email contains the report only.';
+$_lang['setting_mxbackup.retention_days'] = 'Keep for days';
+$_lang['setting_mxbackup.retention_days_desc'] = '0 disables the age limit.';
+$_lang['setting_mxbackup.retention_count'] = 'Keep archives';
+$_lang['setting_mxbackup.retention_count_desc'] = '0 disables the archive count limit.';
+$_lang['setting_mxbackup.lock_ttl_minutes'] = 'Lock TTL, minutes';
+$_lang['setting_mxbackup.lock_ttl_minutes_desc'] = 'Reference interval used to diagnose a stuck backup run.';

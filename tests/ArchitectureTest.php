@@ -17,4 +17,15 @@ final class ArchitectureTest extends TestCase
             self::assertStringNotContainsString('Platform\\Modx2', $source, $file->getPathname());
         }
     }
+
+    public function testManagerSettingsUsePostSafeFieldNames()
+    {
+        $root = dirname(__DIR__);
+        $panel = file_get_contents($root . '/assets/components/mxbackup/js/mgr/widgets/settings.panel.js');
+        $processor = file_get_contents($root . '/core/components/mxbackup/processors/mgr/config/update.class.php');
+
+        self::assertDoesNotMatchRegularExpression("/(?:name|hiddenName): 'mxbackup\\./", $panel);
+        self::assertStringContainsString("'storage_path' => 'mxbackup.storage_path'", $processor);
+        self::assertStringContainsString('array_key_exists($field, $properties)', $processor);
+    }
 }
