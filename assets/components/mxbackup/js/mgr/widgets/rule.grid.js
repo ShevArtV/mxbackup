@@ -69,7 +69,10 @@ Ext.extend(MxBackup.grid.Masking, MODx.grid.Grid, {
     },
     getMenu: function () {
         if (!MxBackup.config.canManage) return [];
-        var record = this.menu.record;
+        var data = this.menu.record || {};
+        var index = this.store.findExact('column', data.column);
+        var record = index < 0 ? null : this.store.getAt(index);
+        if (!record) return [];
         var menu = [];
         if (record.get('column') !== '*') menu.push({text: record.get('source') === 'custom' ? _('mxbackup_edit_rule') : _('mxbackup_add_rule'), handler: function(){this.ruleWindow(record);}, scope:this});
         if (record.get('source') === 'custom' && record.get('rule_id')) menu.push({text:_('remove'), handler:function(){this.removeRule(record);}, scope:this});
@@ -115,7 +118,7 @@ Ext.extend(MxBackup.grid.Masking, MODx.grid.Grid, {
         Ext.Msg.confirm(_('mxbackup_truncate_table'),_('mxbackup_confirm_truncate'),function(answer){if(answer!=='yes')return;MxBackup.request('mgr/rule/create',{profile_id:this.profileCombo.getValue(),target_type:'table',target:table,rule_action:'truncate',priority:100,active:1},function(){this.loadTable(table);}.createDelegate(this));},this);
     },
     removeRule: function (record) {
-        Ext.Msg.confirm(_('remove'),_('mxbackup_confirm_remove_rule'),function(answer){if(answer!=='yes')return;MxBackup.request('mgr/rule/remove',{id:record.get('rule_id')},function(){this.loadTable(this.tableCombo.getValue());}.createDelegate(this));},this);
+        Ext.Msg.confirm(_('remove'),_('mxbackup_confirm_remove_rule'),function(answer){if(answer!=='yes')return;MxBackup.request('mgr/rule/remove',{profile_id:this.profileCombo.getValue(),id:record.get('rule_id')},function(){this.loadTable(this.tableCombo.getValue());}.createDelegate(this));},this);
     }
 });
 Ext.reg('mxbackup-grid-masking', MxBackup.grid.Masking);

@@ -1,31 +1,45 @@
 <?php
-class mxBackupProfileUpdateProcessor extends modObjectUpdateProcessor
+
+require_once __DIR__ . '/store.php';
+
+class mxBackupProfileUpdateProcessor extends modProcessor
 {
-    public $classKey = 'mxBackupProfile';
-    public $languageTopics = ['mxbackup:default'];
-    public $objectType = 'mxbackup_profile';
-    public function checkPermissions() { return $this->modx->hasPermission('mxbackup_manage'); }
-    public function beforeSet()
+    public function checkPermissions()
     {
-        $name = trim((string)$this->getProperty('name'));
-        if (!preg_match('/^[a-z0-9_-]+$/i', $name)) $this->addFieldError('name', $this->modx->lexicon('mxbackup_invalid_name'));
-        $duplicate = $this->modx->getObject($this->classKey, ['name' => $name]);
-        if ($duplicate && (int)$duplicate->get('id') !== (int)$this->getProperty('id')) $this->addFieldError('name', $this->modx->lexicon('mxbackup_name_exists'));
-        $current = $this->object->get('config_json');
-        if (!is_array($current)) $current = json_decode((string)$current, true);
-        if (!is_array($current)) $current = [];
-        $corePath = $this->modx->getOption('mxbackup.core_path', null, MODX_CORE_PATH . 'components/mxbackup/');
-        require_once $corePath . 'autoload.php';
-        try {
-            $config = (new \MxBackup\Core\Config\ProfileEditor())->update($current, $this->getProperties());
-            $this->setProperty('config_json', $config);
-        } catch (InvalidArgumentException $e) {
-            $this->addFieldError('format', $e->getMessage());
+        return $this->modx->hasPermission('mxbackup_manage');
+    }
+
+    public function process()
+    {
+        $originalName = trim((string) $this->getProperty('id'));
+        $name = trim((string) $this->getProperty('name'));
+        if (!preg_match('/^[a-z0-9_-]+$/i', $name)) {
+            return $this->failure($this->modx->lexicon('mxbackup_invalid_name'));
         }
-        $active = $this->getProperty('active');
-        $this->setProperty('active', in_array($active, [true, 1, '1', 'true', 'on'], true) ? 1 : 0);
-        $this->setProperty('editedon', time());
-        return !$this->hasErrors();
+        if (in_array($originalName, ['prod', 'dev'], true) && $name !== $originalName) {
+            return $this->failure($this->modx->lexicon('mxbackup_builtin_profile_rename'));
+        }
+        try {
+            $store = mxBackupProfileStoreHelper::store($this->modx);
+            $current = $store->find($originalName);
+            if (!$current) {
+                return $this->failure($this->modx->lexicon('mxbackup_profile_not_found'));
+            }
+            if ($name !== $originalName && $store->find($name)) {
+                return $this->failure($this->modx->lexicon('mxbackup_name_exists'));
+            }
+            $profile = (new \MxBackup\Core\Config\ProfileEditor())->update($current, $this->getProperties());
+            $profile['name'] = $name;
+            $profile['description'] = trim((string) $this->getProperty('description', ''));
+            $profile['mode'] = (string) $this->getProperty('mode', 'custom');
+            $profile['active'] = mxBackupProfileStoreHelper::boolean($this->getProperty('active'));
+            $profile['editedon'] = time();
+            $profile = $store->save($profile, $originalName);
+            return $this->success('', mxBackupProfileStoreHelper::row($profile));
+        } catch (Throwable $e) {
+            return $this->failure($e->getMessage());
+        }
     }
 }
+
 return 'mxBackupProfileUpdateProcessor';

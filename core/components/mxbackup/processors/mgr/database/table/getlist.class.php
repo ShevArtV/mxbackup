@@ -5,13 +5,11 @@ class mxBackupDatabaseTableGetListProcessor extends modProcessor
 
     public function process()
     {
-        $profile = $this->modx->getObject('mxBackupProfile', (int)$this->getProperty('profile_id'));
-        if (!$profile) return $this->failure($this->modx->lexicon('mxbackup_profile_not_found'));
-        $config = $profile->get('config_json');
-        if (!is_array($config)) $config = json_decode((string)$config, true);
-        if (!is_array($config)) $config = [];
         $corePath = $this->modx->getOption('mxbackup.core_path', null, MODX_CORE_PATH . 'components/mxbackup/');
         require_once $corePath . 'autoload.php';
+        $config = (new \MxBackup\Platform\Modx2\ProfileRepository($this->modx))
+            ->getStore()->find((string) $this->getProperty('profile_id'));
+        if (!$config) return $this->failure($this->modx->lexicon('mxbackup_profile_not_found'));
         $editor = new \MxBackup\Core\Config\ProfileEditor();
         $statement = $this->modx->query("SHOW TABLE STATUS WHERE Engine IS NOT NULL");
         if (!$statement) return $this->failure($this->modx->lexicon('mxbackup_tables_load_error'));
@@ -20,13 +18,14 @@ class mxBackupDatabaseTableGetListProcessor extends modProcessor
         $available = [];
         foreach ($status as $row) $available[] = (string)$row['Name'];
         $selected = array_fill_keys($editor->selection($config, $available), true);
-        $query = mb_strtolower(trim((string)$this->getProperty('query', '')), 'UTF-8');
+        $query = trim((string)$this->getProperty('query', ''));
+        $matching = array_fill_keys($editor->filterTables($available, $query), true);
         $includedOnly = (bool)$this->getProperty('included_only', false);
         $rows = [];
         foreach ($status as $row) {
             $name = (string)$row['Name'];
             if ($includedOnly && !isset($selected[$name])) continue;
-            if ($query !== '' && mb_strpos(mb_strtolower($name, 'UTF-8'), $query, 0, 'UTF-8') === false) continue;
+            if (!isset($matching[$name])) continue;
             $rows[] = [
                 'name' => $name,
                 'engine' => (string)$row['Engine'],

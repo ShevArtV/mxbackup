@@ -1,34 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <model package="mxbackup" baseClass="xPDOObject" platform="mysql" defaultEngine="InnoDB" version="1.1">
-    <object class="mxBackupProfile" table="mxbackup_profile" extends="xPDOSimpleObject">
-        <field key="name" dbtype="varchar" precision="100" phptype="string" null="false" default="" index="unique"/>
-        <field key="description" dbtype="text" phptype="string" null="true"/>
-        <field key="mode" dbtype="varchar" precision="20" phptype="string" null="false" default="custom" index="index"/>
-        <field key="active" dbtype="tinyint" precision="1" attributes="unsigned" phptype="boolean" null="false" default="1" index="index"/>
-        <field key="config_json" dbtype="mediumtext" phptype="json" null="true"/>
-        <field key="createdon" dbtype="integer" precision="20" attributes="unsigned" phptype="integer" null="false" default="0"/>
-        <field key="editedon" dbtype="integer" precision="20" attributes="unsigned" phptype="integer" null="false" default="0"/>
-        <index alias="name" name="name" primary="false" unique="true" type="BTREE"><column key="name" length="" collation="A" null="false"/></index>
-        <index alias="mode" name="mode" primary="false" unique="false" type="BTREE"><column key="mode" length="" collation="A" null="false"/></index>
-        <index alias="active" name="active" primary="false" unique="false" type="BTREE"><column key="active" length="" collation="A" null="false"/></index>
-        <composite alias="Rules" class="mxBackupRule" local="id" foreign="profile_id" cardinality="many" owner="local"/>
-    </object>
-
-    <object class="mxBackupRule" table="mxbackup_rule" extends="xPDOSimpleObject">
-        <field key="profile_id" dbtype="integer" precision="11" attributes="unsigned" phptype="integer" null="false" default="0" index="index"/>
-        <field key="target_type" dbtype="varchar" precision="30" phptype="string" null="false" default="column" index="index"/>
-        <field key="target" dbtype="varchar" precision="255" phptype="string" null="false" default=""/>
-        <field key="action" dbtype="varchar" precision="20" phptype="string" null="false" default="mask" index="index"/>
-        <field key="value" dbtype="text" phptype="string" null="true"/>
-        <field key="priority" dbtype="integer" precision="11" phptype="integer" null="false" default="0" index="index"/>
-        <field key="active" dbtype="tinyint" precision="1" attributes="unsigned" phptype="boolean" null="false" default="1" index="index"/>
-        <field key="createdon" dbtype="integer" precision="20" attributes="unsigned" phptype="integer" null="false" default="0"/>
-        <field key="editedon" dbtype="integer" precision="20" attributes="unsigned" phptype="integer" null="false" default="0"/>
-        <index alias="profile_id" name="profile_id" primary="false" unique="false" type="BTREE"><column key="profile_id" length="" collation="A" null="false"/></index>
-        <index alias="priority" name="priority" primary="false" unique="false" type="BTREE"><column key="priority" length="" collation="A" null="false"/></index>
-        <aggregate alias="Profile" class="mxBackupProfile" local="profile_id" foreign="id" cardinality="one" owner="foreign"/>
-    </object>
-
     <object class="mxBackupRun" table="mxbackup_run" extends="xPDOSimpleObject">
         <field key="profile" dbtype="varchar" precision="100" phptype="string" null="false" default="" index="index"/>
         <field key="mode" dbtype="varchar" precision="20" phptype="string" null="false" default="prod" index="index"/>

@@ -1,6 +1,7 @@
 <?php
 $definitions = [
     'mxbackup.storage_path' => ['', 'textfield', 'mxbackup_general'],
+    'mxbackup.config_dir' => ['{core_path}config/mxbackup/profiles/', 'textfield', 'mxbackup_general'],
     'mxbackup.config_path' => ['', 'textfield', 'mxbackup_general'],
     'mxbackup.default_profile' => ['prod', 'textfield', 'mxbackup_general'],
     'mxbackup.archive_format' => ['tar.gz', 'textfield', 'mxbackup_general'],

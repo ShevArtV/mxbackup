@@ -5,29 +5,27 @@ class mxBackupDatabaseColumnGetListProcessor extends modProcessor
 
     public function process()
     {
-        $profileId = (int)$this->getProperty('profile_id');
+        $profileId = (string)$this->getProperty('profile_id');
         $table = (string)$this->getProperty('table');
-        $profile = $this->modx->getObject('mxBackupProfile', $profileId);
-        if (!$profile) return $this->failure($this->modx->lexicon('mxbackup_profile_not_found'));
         $corePath = $this->modx->getOption('mxbackup.core_path', null, MODX_CORE_PATH . 'components/mxbackup/');
         require_once $corePath . 'autoload.php';
+        $config = (new \MxBackup\Platform\Modx2\ProfileRepository($this->modx))
+            ->getStore()->find($profileId);
+        if (!$config) return $this->failure($this->modx->lexicon('mxbackup_profile_not_found'));
         $database = new \MxBackup\Platform\Modx2\DatabaseAdapter($this->modx);
         if (!in_array($table, $database->listTables(), true)) {
             return $this->failure($this->modx->lexicon('mxbackup_table_not_found'));
         }
-        $config = $profile->get('config_json');
-        if (!is_array($config)) $config = json_decode((string)$config, true);
-        if (!is_array($config)) $config = [];
         $standard = !empty($config['masking']['standard']) ? \MxBackup\Core\Masking\StandardRules::rules() : [];
         usort($standard, static function ($a, $b) { return $a->getPriority() <=> $b->getPriority(); });
-
-        $query = $this->modx->newQuery('mxBackupRule');
-        $query->where(['profile_id' => $profileId, 'active' => 1]);
-        $query->sortby('priority', 'ASC');
-        $custom = [];
-        foreach ($this->modx->getIterator('mxBackupRule', $query) as $rule) {
-            $custom[] = $rule->toArray();
-        }
+        $custom = isset($config['masking']['rules']) && is_array($config['masking']['rules'])
+            ? array_values(array_filter($config['masking']['rules'], static function ($rule) {
+                return !empty($rule['active']);
+            }))
+            : [];
+        usort($custom, static function ($a, $b) {
+            return (int) $a['priority'] <=> (int) $b['priority'];
+        });
 
         $meta = $database->describeTable($table);
         $rows = [];

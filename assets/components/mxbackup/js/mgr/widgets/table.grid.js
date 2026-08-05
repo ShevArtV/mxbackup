@@ -6,7 +6,11 @@ MxBackup.grid.Tables = function (config) {
         store: new Ext.data.ArrayStore({fields:['value','display'],data:[['all_except',_('mxbackup_table_mode_all_except')],['selected',_('mxbackup_table_mode_selected')]]}),
         displayField: 'display', valueField: 'value', value: 'all_except'
     });
-    this.searchField = new Ext.form.TextField({width: 180, emptyText: _('search')});
+    this.searchField = new Ext.form.TextField({
+        width: 240,
+        emptyText: _('mxbackup_search_table'),
+        enableKeyEvents: true
+    });
     Ext.apply(config, {
         id: 'mxbackup-grid-tables', url: MxBackup.config.connectorUrl,
         baseParams: {action: 'mgr/database/table/getlist', profile_id: 0},
@@ -66,7 +70,10 @@ Ext.extend(MxBackup.grid.Tables, MODx.grid.Grid, {
     },
     setAll: function (included) {
         MxBackup.request('mgr/profile/tables/update', {
-            profile_id: this.profileCombo.getValue(), operation: 'set_all', included: included ? 1 : 0
+            profile_id: this.profileCombo.getValue(),
+            operation: 'set_all',
+            included: included ? 1 : 0,
+            query: String(this.searchField.getValue() || '')
         }, function (response) {
             MODx.msg.status({title: _('success'), message: response.message || _('mxbackup_tables_saved')});
             this.loadProfile(this.profileCombo.getValue());

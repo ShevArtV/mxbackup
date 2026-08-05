@@ -25,6 +25,12 @@ MxBackup.panel.Settings = function (config) {
                     },
                     {
                         xtype: 'textfield',
+                        fieldLabel: _('setting_mxbackup.config_dir'),
+                        description: _('setting_mxbackup.config_dir_desc'),
+                        name: 'config_dir'
+                    },
+                    {
+                        xtype: 'textfield',
                         fieldLabel: _('setting_mxbackup.config_path'),
                         description: _('setting_mxbackup.config_path_desc'),
                         name: 'config_path'

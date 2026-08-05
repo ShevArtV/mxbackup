@@ -52,4 +52,18 @@ final class ProfileEditorTest extends TestCase
         self::assertSame([], $empty['database']['include_tables']);
         self::assertSame([], $editor->selection($empty, ['a']));
     }
+
+    public function testTableFilterMatchesAnyCaseInsensitiveSubstringAndEmptyQueryMatchesAll()
+    {
+        $editor = new ProfileEditor();
+        $tables = ['modx_users', 'modx_user_attributes', 'modx_session', 'shop_customers'];
+
+        self::assertSame($tables, $editor->filterTables($tables, ''));
+        self::assertSame(
+            ['modx_users', 'modx_user_attributes'],
+            $editor->filterTables($tables, 'UsEr')
+        );
+        self::assertSame(['shop_customers'], $editor->filterTables($tables, 'customer'));
+        self::assertSame([], $editor->filterTables($tables, 'missing'));
+    }
 }

@@ -5,14 +5,13 @@ class mxBackupProfileTablesUpdateProcessor extends modProcessor
 
     public function process()
     {
-        $profile = $this->modx->getObject('mxBackupProfile', (int)$this->getProperty('profile_id'));
-        if (!$profile) return $this->failure($this->modx->lexicon('mxbackup_profile_not_found'));
         $corePath = $this->modx->getOption('mxbackup.core_path', null, MODX_CORE_PATH . 'components/mxbackup/');
         require_once $corePath . 'autoload.php';
+        $store = (new \MxBackup\Platform\Modx2\ProfileRepository($this->modx))->getStore();
+        $profileName = (string) $this->getProperty('profile_id');
+        $config = $store->find($profileName);
+        if (!$config) return $this->failure($this->modx->lexicon('mxbackup_profile_not_found'));
         $database = new \MxBackup\Platform\Modx2\DatabaseAdapter($this->modx);
-        $config = $profile->get('config_json');
-        if (!is_array($config)) $config = json_decode((string)$config, true);
-        if (!is_array($config)) $config = [];
         $editor = new \MxBackup\Core\Config\ProfileEditor();
         $available = $database->listTables();
         $selected = $editor->selection($config, $available);
@@ -25,7 +24,12 @@ class mxBackupProfileTablesUpdateProcessor extends modProcessor
             $selected = array_values(array_diff($selected, [$table]));
             if ($included) $selected[] = $table;
         } elseif ($operation === 'set_all') {
-            $selected = $this->boolean($this->getProperty('included')) ? $available : [];
+            $matching = $editor->filterTables($available, $this->getProperty('query', ''));
+            if ($this->boolean($this->getProperty('included'))) {
+                $selected = array_values(array_unique(array_merge($selected, $matching)));
+            } else {
+                $selected = array_values(array_diff($selected, $matching));
+            }
         } elseif ($operation === 'mode') {
             $selectionMode = (string)$this->getProperty('selection_mode', $selectionMode);
         } elseif ($operation === 'replace') {
@@ -40,9 +44,12 @@ class mxBackupProfileTablesUpdateProcessor extends modProcessor
         } catch (InvalidArgumentException $e) {
             return $this->failure($e->getMessage());
         }
-        $profile->set('config_json', $config);
-        $profile->set('editedon', time());
-        if (!$profile->save()) return $this->failure($this->modx->lexicon('mxbackup_profile_save_error'));
+        $config['editedon'] = time();
+        try {
+            $store->save($config, $profileName);
+        } catch (Throwable $e) {
+            return $this->failure($e->getMessage());
+        }
         return $this->success($this->modx->lexicon('mxbackup_tables_saved'));
     }
 

@@ -28,4 +28,13 @@ final class ArchitectureTest extends TestCase
         self::assertStringContainsString("'storage_path' => 'mxbackup.storage_path'", $processor);
         self::assertStringContainsString('array_key_exists($field, $properties)', $processor);
     }
+
+    public function testOnlyRunHistoryHasAnXpdoModel()
+    {
+        $schema = file_get_contents(dirname(__DIR__) . '/core/components/mxbackup/model/schema/mxbackup.mysql.schema.xml');
+
+        self::assertStringContainsString('class="mxBackupRun"', $schema);
+        self::assertStringNotContainsString('class="mxBackupProfile"', $schema);
+        self::assertStringNotContainsString('class="mxBackupRule"', $schema);
+    }
 }

@@ -1,9 +1,12 @@
-# mxBackup: план реализации
+# mxBackup: архитектура реализации
 
 > Дата: 2026-08-02
 >
 > Цель: MODX-пакет с CLI-инструментом и админкой для создания production- и
 > development-бэкапов сайта. Первая линия — MODX 2, затем порт на MODX 3.
+>
+> Актуализация 2026-08-05: профили и правила хранятся в переносимых PHP-файлах;
+> БД используется только для истории запусков.
 
 ## Цель пакета
 
@@ -38,7 +41,7 @@ MODX идут через platform-интерфейсы.
 
 1. CLI-параметр.
 2. Site config file.
-3. Профиль/правило из таблиц пакета.
+3. Файловый профиль из каталога `mxbackup.config_dir`.
 4. Системная настройка MODX.
 5. Default config пакета.
 
@@ -63,6 +66,8 @@ php core/components/mxbackup/cli/mxbackup.php backup \
 Начальный список:
 
 - `mxbackup.storage_path` — путь сохранения архивов по умолчанию.
+- `mxbackup.config_dir` — каталог PHP-файлов профилей; по умолчанию
+  `{core_path}config/mxbackup/profiles/`.
 - `mxbackup.config_path` — путь до проектного PHP-конфига.
 - `mxbackup.default_profile` — профиль по умолчанию (`prod` или `dev`).
 - `mxbackup.mail_enabled` — включена ли отправка email.
@@ -124,50 +129,16 @@ return [
 ];
 ```
 
-## Таблицы пакета
+## Файловые профили и таблица истории
 
-Сложные настройки профилей не стоит хранить только в системных настройках JSON:
-их нужно редактировать через UI, валидировать и версионировать на уровне пакета.
+Профили и правила include/exclude/mask/hide хранятся по одному PHP-файлу на
+профиль в каталоге `mxbackup.config_dir`. CMP и CLI используют один источник
+истины. Файлы записываются через временный файл и атомарный rename, поэтому их
+можно переносить и версионировать вместе с проектом.
 
-### `mxbackup_profile`
-
-Что: хранить профили backup-а.
-
-Куда: `core/components/mxbackup/model/schema/mxbackup.mysql.schema.xml`.
-
-Зачем: иметь стандартные `prod`, `dev` и пользовательские профили.
-
-Поля:
-
-- `id`
-- `name`
-- `description`
-- `mode`: `prod`, `dev`, `custom`
-- `active`
-- `config_json`
-- `createdon`
-- `editedon`
-
-### `mxbackup_rule`
-
-Что: хранить правила include/exclude/mask/hide.
-
-Куда: `core/components/mxbackup/model/schema/mxbackup.mysql.schema.xml`.
-
-Зачем: управлять правилами через админку, а не только через PHP-файл.
-
-Поля:
-
-- `id`
-- `profile_id`
-- `target_type`: `file`, `directory`, `table`, `column`, `json_path`
-- `target`
-- `action`: `include`, `exclude`, `mask`, `hide`, `truncate`, `hash`, `replace`
-- `value`
-- `priority`
-- `active`
-- `createdon`
-- `editedon`
+При обновлении ранняя схема `mxbackup_profile`/`mxbackup_rule` сначала мигрируется
+в PHP-файлы. Старые таблицы удаляются только после успешного чтения и сохранения
+всех профилей и правил.
 
 ### `mxbackup_run`
 

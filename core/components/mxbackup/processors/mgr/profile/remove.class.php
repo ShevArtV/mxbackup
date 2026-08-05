@@ -1,14 +1,33 @@
 <?php
-class mxBackupProfileRemoveProcessor extends modObjectRemoveProcessor
+
+require_once __DIR__ . '/store.php';
+
+class mxBackupProfileRemoveProcessor extends modProcessor
 {
-    public $classKey = 'mxBackupProfile';
-    public $languageTopics = ['mxbackup:default'];
-    public $objectType = 'mxbackup_profile';
-    public function checkPermissions() { return $this->modx->hasPermission('mxbackup_manage'); }
-    public function beforeRemove()
+    public function checkPermissions()
     {
-        if (in_array($this->object->get('name'), ['prod','dev'], true)) return $this->modx->lexicon('mxbackup_builtin_profile_remove');
-        return parent::beforeRemove();
+        return $this->modx->hasPermission('mxbackup_manage');
+    }
+
+    public function process()
+    {
+        $name = trim((string) $this->getProperty('id'));
+        if (in_array($name, ['prod', 'dev'], true)) {
+            return $this->failure($this->modx->lexicon('mxbackup_builtin_profile_remove'));
+        }
+        try {
+            $store = mxBackupProfileStoreHelper::store($this->modx);
+            if (!$store->find($name)) {
+                return $this->failure($this->modx->lexicon('mxbackup_profile_not_found'));
+            }
+            if (!$store->remove($name)) {
+                return $this->failure($this->modx->lexicon('mxbackup_profile_save_error'));
+            }
+            return $this->success();
+        } catch (Throwable $e) {
+            return $this->failure($e->getMessage());
+        }
     }
 }
+
 return 'mxBackupProfileRemoveProcessor';

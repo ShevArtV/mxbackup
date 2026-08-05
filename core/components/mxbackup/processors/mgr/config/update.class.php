@@ -4,6 +4,7 @@ class mxBackupConfigUpdateProcessor extends modProcessor
 {
     private $fields = [
         'storage_path' => 'mxbackup.storage_path',
+        'config_dir' => 'mxbackup.config_dir',
         'config_path' => 'mxbackup.config_path',
         'default_profile' => 'mxbackup.default_profile',
         'archive_format' => 'mxbackup.archive_format',

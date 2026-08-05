@@ -1,23 +1,32 @@
 <?php
-class mxBackupProfileGetListProcessor extends modObjectGetListProcessor
+
+require_once __DIR__ . '/store.php';
+
+class mxBackupProfileGetListProcessor extends modProcessor
 {
-    public $classKey = 'mxBackupProfile';
-    public $languageTopics = ['mxbackup:default'];
-    public $defaultSortField = 'name';
-    public $defaultSortDirection = 'ASC';
-    public $objectType = 'mxbackup_profile';
-    public function checkPermissions() { return $this->modx->hasPermission('mxbackup_view'); }
-    public function prepareRow(xPDOObject $object)
+    public function checkPermissions()
     {
-        $row = $object->toArray();
-        $config = $object->get('config_json');
-        if (!is_array($config)) $config = json_decode((string)$config, true);
-        if (!is_array($config)) $config = [];
-        $row['format'] = isset($config['format']) ? $config['format'] : 'tar.gz';
-        $row['file_include'] = implode("\n", isset($config['files']['include']) ? $config['files']['include'] : ['*']);
-        $row['file_exclude'] = implode("\n", isset($config['files']['exclude']) ? $config['files']['exclude'] : []);
-        $row['standard_masking'] = !empty($config['masking']['standard']);
-        return $row;
+        return $this->modx->hasPermission('mxbackup_view');
+    }
+
+    public function process()
+    {
+        try {
+            $rows = [];
+            foreach (mxBackupProfileStoreHelper::store($this->modx)->all() as $profile) {
+                $rows[] = mxBackupProfileStoreHelper::row($profile);
+            }
+            $total = count($rows);
+            $start = max(0, (int) $this->getProperty('start', 0));
+            $limit = max(0, (int) $this->getProperty('limit', 20));
+            if ($limit > 0) {
+                $rows = array_slice($rows, $start, $limit);
+            }
+            return $this->outputArray($rows, $total);
+        } catch (Throwable $e) {
+            return $this->failure($e->getMessage());
+        }
     }
 }
+
 return 'mxBackupProfileGetListProcessor';

@@ -21,3 +21,9 @@
 .mxbackup-report-list { background: #f8fafb; border: 1px solid #e2e7e9; border-radius: 4px; line-height: 1.45; margin-bottom: 10px; max-height: 170px; overflow: auto; padding: 8px 10px; }
 .mxbackup-status-error { color: #b53b3b; font-weight: 600; }
 .mxbackup-status-success { color: #2d8a45; font-weight: 600; }
+.mxbackup-status-warning { color: #9a5d14; font-weight: 600; }
+.mxbackup-status-running { color: #286783; font-weight: 600; }
+.mxbackup-run-details { line-height: 1.5; }
+.mxbackup-run-details h4 { margin: 16px 0 6px; }
+.mxbackup-run-details ul { margin: 4px 0 10px 20px; }
+.mxbackup-run-details code { overflow-wrap: anywhere; }

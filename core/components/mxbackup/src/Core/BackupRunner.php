@@ -76,6 +76,9 @@ final class BackupRunner
                 'storage_path' => $storagePath,
                 'startedon' => $started,
             ]);
+            if (!$runId) {
+                throw new RuntimeException('Не удалось создать запись в истории backup.');
+            }
 
             $fileExcludes = $profile['files']['exclude'];
             if (strpos($storagePath . DIRECTORY_SEPARATOR, $siteRoot . DIRECTORY_SEPARATOR) === 0) {
@@ -135,11 +138,13 @@ final class BackupRunner
 
             if ($dryRun) {
                 $report->complete($this->platform->now());
-                $this->platform->runs()->finish($runId, [
+                if (!$this->platform->runs()->finish($runId, [
                     'status' => $report->toArray()['status'],
                     'report_json' => $report->toArray(),
                     'completedon' => $this->platform->now(),
-                ]);
+                ])) {
+                    throw new RuntimeException('Не удалось завершить запись в истории backup.');
+                }
                 return new BackupResult(true, null, $report->toArray());
             }
 
@@ -201,7 +206,7 @@ final class BackupRunner
             $report->set('retention_deleted', $deleted);
             $report->complete($this->platform->now());
 
-            $this->platform->runs()->finish($runId, [
+            if (!$this->platform->runs()->finish($runId, [
                 'status' => $report->toArray()['status'],
                 'archive_path' => $archivePath,
                 'archive_size' => $archiveSize,
@@ -210,7 +215,9 @@ final class BackupRunner
                 'report_json' => $report->toArray(),
                 'email_sent' => $mailResult->isSent(),
                 'completedon' => $this->platform->now(),
-            ]);
+            ])) {
+                throw new RuntimeException('Не удалось завершить запись в истории backup.');
+            }
             return new BackupResult(true, $archivePath, $report->toArray());
         } catch (\Throwable $e) {
             $report->error($e->getMessage());

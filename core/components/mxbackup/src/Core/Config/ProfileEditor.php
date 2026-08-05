@@ -80,6 +80,23 @@ final class ProfileEditor
         return $include === ['*'] ? 'all_except' : 'selected';
     }
 
+    public function filterTables(array $tables, $query)
+    {
+        $query = mb_strtolower(trim((string)$query), 'UTF-8');
+        if ($query === '') {
+            return array_values($tables);
+        }
+
+        $matched = [];
+        foreach ($tables as $table) {
+            $table = (string)$table;
+            if (mb_strpos(mb_strtolower($table, 'UTF-8'), $query, 0, 'UTF-8') !== false) {
+                $matched[] = $table;
+            }
+        }
+        return $matched;
+    }
+
     public function listValue($value)
     {
         if (!is_array($value)) {

@@ -7,7 +7,7 @@ if ($transport->xpdo) {
             $corePath = $modx->getOption('mxbackup.core_path', null, $modx->getOption('core_path').'components/mxbackup/');
             $modx->addPackage('mxbackup', $corePath.'model/');
             $manager = $modx->getManager();
-            foreach (['mxBackupProfile','mxBackupRule','mxBackupRun'] as $class) {
+            foreach (['mxBackupRun'] as $class) {
                 $manager->createObjectContainer($class);
                 $table = $modx->getTableName($class);
                 $status = $modx->query("SHOW TABLE STATUS LIKE ".$modx->quote($table));

@@ -28,7 +28,14 @@ Ext.extend(MxBackup.grid.Profiles, MODx.grid.Grid, {
     },
     getMenu: function () {
         if (!MxBackup.config.canManage) return [];
-        return [{text: _('edit'), handler: function () { this.updateProfile(this, this.menu.recordIndex); }, scope: this}];
+        var record = this.menu.record || {};
+        return [{
+            text: _('edit'),
+            handler: function () {
+                this.profileWindow(_('mxbackup_edit_profile'), 'mgr/profile/update', record);
+            },
+            scope: this
+        }];
     },
     profileWindow: function (title, action, record) {
         var grid = this;

@@ -2,64 +2,56 @@
 
 namespace MxBackup\Platform\Modx2;
 
+use MxBackup\Core\Config\ProfileStore;
 use MxBackup\Core\Contract\ProfileRepositoryInterface;
 
 final class ProfileRepository implements ProfileRepositoryInterface
 {
-    private $modx;
+    private $store;
 
     public function __construct(\modX $modx)
     {
-        $this->modx = $modx;
+        $this->store = new ProfileStore(self::configDirectory($modx));
     }
 
     public function all()
     {
-        $result = [];
-        $query = $this->modx->newQuery('mxBackupProfile');
-        $query->where(['active' => 1]);
-        $query->sortby('name', 'ASC');
-        foreach ($this->modx->getIterator('mxBackupProfile', $query) as $profile) {
-            $config = $profile->get('config_json');
-            if (!is_array($config)) {
-                $config = json_decode((string)$config, true);
-            }
-            if (!is_array($config)) $config = [];
-            $config['name'] = (string)$profile->get('name');
-            $config['mode'] = (string)$profile->get('mode');
-            foreach ($this->rules((int)$profile->get('id')) as $rule) {
-                $targetType = (string)$rule['target_type'];
-                $action = (string)$rule['action'];
-                if (in_array($targetType, ['file', 'directory'], true) && in_array($action, ['include', 'exclude'], true)) {
-                    $key = $action === 'include' ? 'include' : 'exclude';
-                    $config['files'][$key][] = (string)$rule['target'];
-                } elseif ($targetType === 'table' && in_array($action, ['include', 'exclude'], true)) {
-                    $key = $action === 'include' ? 'include_tables' : 'exclude_tables';
-                    $config['database'][$key][] = (string)$rule['target'];
-                } else {
-                    $config['masking']['rules'][] = $rule;
-                }
-            }
-            $result[$config['name']] = $config;
-        }
-        return $result;
+        return $this->store->all(true);
     }
 
     public function find($name)
     {
-        $all = $this->all();
-        return isset($all[$name]) ? $all[$name] : null;
+        $profile = $this->store->find($name);
+        return $profile && !empty($profile['active']) ? $profile : null;
     }
 
-    private function rules($profileId)
+    public function getStore()
     {
-        $result = [];
-        $query = $this->modx->newQuery('mxBackupRule');
-        $query->where(['profile_id' => $profileId, 'active' => 1]);
-        $query->sortby('priority', 'ASC');
-        foreach ($this->modx->getIterator('mxBackupRule', $query) as $rule) {
-            $result[] = $rule->toArray();
+        return $this->store;
+    }
+
+    public static function configDirectory(\modX $modx)
+    {
+        $corePath = rtrim((string) $modx->getOption('core_path', null, MODX_CORE_PATH), '/\\') . DIRECTORY_SEPARATOR;
+        $configured = trim((string) $modx->getOption('mxbackup.config_dir', null, ''));
+        if ($configured === '') {
+            return $corePath . 'config' . DIRECTORY_SEPARATOR . 'mxbackup' . DIRECTORY_SEPARATOR . 'profiles';
         }
-        return $result;
+
+        $configured = str_replace(
+            ['{core_path}', '[[++core_path]]'],
+            [$corePath, $corePath],
+            $configured
+        );
+        if (!self::isAbsolutePath($configured)) {
+            $configured = $corePath . ltrim($configured, '/\\');
+        }
+        return rtrim($configured, '/\\');
+    }
+
+    private static function isAbsolutePath($path)
+    {
+        return strpos($path, DIRECTORY_SEPARATOR) === 0
+            || preg_match('/^[a-z]:[\\\\\/]/i', $path) === 1;
     }
 }
