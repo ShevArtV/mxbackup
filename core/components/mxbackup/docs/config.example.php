@@ -7,6 +7,7 @@ return [
         'prod' => [
             'mode' => 'prod',
             'format' => 'tar.gz',
+            'encryption' => ['enabled' => false, 'password' => ''],
             'files' => [
                 'include' => ['*'],
                 'exclude' => ['core/cache/', 'core/packages/', 'assets/cache/'],
@@ -19,7 +20,11 @@ return [
         ],
         'dev' => [
             'mode' => 'dev',
-            'format' => 'tar.gz',
+            'format' => 'zip',
+            'encryption' => [
+                'enabled' => true,
+                'password' => 'replace-with-a-long-random-password',
+            ],
             'files' => [
                 'include' => ['*'],
                 'exclude' => [

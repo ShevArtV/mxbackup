@@ -28,6 +28,7 @@ final class Defaults
                     'name' => 'prod',
                     'mode' => 'prod',
                     'format' => 'tar.gz',
+                    'encryption' => ['enabled' => false, 'password' => ''],
                     'files' => [
                         'include' => ['*'],
                         'exclude' => ['core/cache/', 'core/packages/', 'assets/cache/'],
@@ -42,6 +43,7 @@ final class Defaults
                     'name' => 'dev',
                     'mode' => 'dev',
                     'format' => 'tar.gz',
+                    'encryption' => ['enabled' => false, 'password' => ''],
                     'files' => [
                         'include' => ['*'],
                         'exclude' => [

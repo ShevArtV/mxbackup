@@ -23,12 +23,17 @@ final class BackupRunnerTest extends TestCase
         $platform = new FakePlatform($site, $database);
         $config = (new ConfigResolver())->resolve(Defaults::values(), [], [], [
             'storage_path' => $storage, 'format' => 'zip', 'profile' => 'dev',
+            'profiles' => ['dev' => [
+                'encryption' => ['enabled' => true, 'password' => 'integration-test-password'],
+            ]],
         ], []);
         $result = (new BackupRunner($platform))->run($config, false);
         self::assertTrue($result->isSuccess());
         self::assertFileExists($result->getArchivePath());
 
         $zip = new ZipArchive(); $zip->open($result->getArchivePath());
+        self::assertFalse($zip->getFromName('database.sql'));
+        $zip->setPassword('integration-test-password');
         $sql = $zip->getFromName('database.sql');
         self::assertStringNotContainsString('person@example.com', $sql);
         self::assertStringContainsString('@example.test', $sql);
@@ -38,10 +43,35 @@ final class BackupRunnerTest extends TestCase
         self::assertSame(['modx_contacts'], $result->getReport()['stats']['table_names']);
         self::assertSame(1, $result->getReport()['stats']['masked_columns']);
         self::assertSame('mask', $result->getReport()['stats']['masking_tables']['modx_contacts']['columns']['email']);
+        self::assertTrue($result->getReport()['stats']['encrypted']);
+        self::assertSame('zip-aes-256', $result->getReport()['stats']['encryption_method']);
+        self::assertStringNotContainsString('integration-test-password', json_encode($result->getReport()));
+        self::assertSame(['info', 'info'], array_column($platform->logs, 'level'));
         $zip->close();
 
         foreach (glob($storage . '/*') ?: [] as $file) @unlink($file);
         @unlink($storage . '/.mxbackup.lock');
         @unlink($site . '/index.php'); @rmdir($storage); @rmdir($site); @rmdir($base);
+    }
+
+    public function testConfigurationErrorsAreLoggedBeforeRunHistoryStarts()
+    {
+        $database = new FakeDatabase([]);
+        $platform = new FakePlatform('/missing-site-root', $database);
+        $config = Defaults::values();
+        $config['profile'] = $config['profiles']['prod'];
+        $config['profile']['encryption'] = ['enabled' => true, 'password' => 'secret'];
+
+        try {
+            (new BackupRunner($platform))->run($config, false);
+            self::fail('Invalid encrypted tar.gz must be rejected');
+        } catch (\RuntimeException $e) {
+            self::assertStringContainsString('только для ZIP', $e->getMessage());
+        }
+
+        self::assertCount(1, $platform->logs);
+        self::assertSame('error', $platform->logs[0]['level']);
+        self::assertSame(0, $platform->logs[0]['context']['run_id']);
+        self::assertSame([], $platform->runs->records);
     }
 }

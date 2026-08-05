@@ -23,7 +23,7 @@ use RuntimeException;
 
 final class BackupRunner
 {
-    const VERSION = '1.0.0-beta';
+    const VERSION = '1.1.0-beta';
 
     private $platform;
     private $storage;
@@ -42,33 +42,33 @@ final class BackupRunner
     {
         $started = $this->platform->now();
         $report = new RunReport($started);
-        $profile = $config['profile'];
-        $profileName = $profile['name'];
-        $mode = $profile['mode'];
+        $profile = isset($config['profile']) && is_array($config['profile']) ? $config['profile'] : [];
+        $profileName = isset($profile['name']) ? (string) $profile['name'] : 'unknown';
+        $mode = isset($profile['mode']) ? (string) $profile['mode'] : 'unknown';
         $runId = 0;
         $workspace = null;
         $archivePath = null;
         $temporary = null;
 
-        $errors = (new ConfigValidator())->validate($config);
-        if ($errors) {
-            throw new RuntimeException(implode('; ', $errors));
-        }
-
-        $siteRoot = realpath($this->platform->getSiteRoot());
-        if (!$siteRoot) {
-            throw new RuntimeException('Корень сайта не существует.');
-        }
-        $storagePath = trim((string)(isset($profile['storage_path']) ? $profile['storage_path'] : $config['storage_path']));
-        if ($storagePath === '') {
-            $storagePath = dirname($siteRoot) . DIRECTORY_SEPARATOR . 'backups';
-        }
-        $storagePath = $this->validator->validateCandidate($storagePath, $siteRoot, !empty($config['allow_web_storage']));
-        $this->storage->ensureDirectory($storagePath);
-        $storagePath = $this->validator->validate($storagePath, $siteRoot, !empty($config['allow_web_storage']));
-        $this->lock->acquire($storagePath, isset($config['lock_ttl_minutes']) ? $config['lock_ttl_minutes'] : 720);
-
         try {
+            $errors = (new ConfigValidator())->validate($config);
+            if ($errors) {
+                throw new RuntimeException(implode('; ', $errors));
+            }
+
+            $siteRoot = realpath($this->platform->getSiteRoot());
+            if (!$siteRoot) {
+                throw new RuntimeException('Корень сайта не существует.');
+            }
+            $storagePath = trim((string)(isset($profile['storage_path']) ? $profile['storage_path'] : $config['storage_path']));
+            if ($storagePath === '') {
+                $storagePath = dirname($siteRoot) . DIRECTORY_SEPARATOR . 'backups';
+            }
+            $storagePath = $this->validator->validateCandidate($storagePath, $siteRoot, !empty($config['allow_web_storage']));
+            $this->storage->ensureDirectory($storagePath);
+            $storagePath = $this->validator->validate($storagePath, $siteRoot, !empty($config['allow_web_storage']));
+            $this->lock->acquire($storagePath, isset($config['lock_ttl_minutes']) ? $config['lock_ttl_minutes'] : 720);
+
             $runId = $this->platform->runs()->start([
                 'profile' => $profileName,
                 'mode' => $mode,
@@ -79,6 +79,12 @@ final class BackupRunner
             if (!$runId) {
                 throw new RuntimeException('Не удалось создать запись в истории backup.');
             }
+            $this->platform->log('info', 'Запуск резервного копирования.', [
+                'run_id' => $runId,
+                'profile' => $profileName,
+                'mode' => $mode,
+                'dry_run' => (bool) $dryRun,
+            ]);
 
             $fileExcludes = $profile['files']['exclude'];
             if (strpos($storagePath . DIRECTORY_SEPARATOR, $siteRoot . DIRECTORY_SEPARATOR) === 0) {
@@ -135,6 +141,14 @@ final class BackupRunner
             $report->set('masking_tables', $maskingPlan);
             $report->set('masked_columns', $maskedColumns);
             $report->set('truncated_tables', $truncatedTables);
+            $encryption = isset($profile['encryption']) && is_array($profile['encryption'])
+                ? $profile['encryption']
+                : ['enabled' => false, 'password' => ''];
+            $encrypted = !empty($encryption['enabled']);
+            $report->set('encrypted', $encrypted);
+            if ($encrypted) {
+                $report->set('encryption_method', 'zip-aes-256');
+            }
 
             if ($dryRun) {
                 $report->complete($this->platform->now());
@@ -145,6 +159,10 @@ final class BackupRunner
                 ])) {
                     throw new RuntimeException('Не удалось завершить запись в истории backup.');
                 }
+                $this->platform->log('info', 'Dry-run завершён.', [
+                    'run_id' => $runId,
+                    'profile' => $profileName,
+                ]);
                 return new BackupResult(true, null, $report->toArray());
             }
 
@@ -181,7 +199,14 @@ final class BackupRunner
             if (is_file($final)) {
                 $final = $storagePath . DIRECTORY_SEPARATOR . $baseName . '-' . bin2hex(random_bytes(3)) . '.' . $extension;
             }
-            (new ArchiveWriter())->write($temporary, $format, $files, $sqlPath, $manifestPath);
+            (new ArchiveWriter())->write(
+                $temporary,
+                $format,
+                $files,
+                $sqlPath,
+                $manifestPath,
+                $encrypted ? (string) $encryption['password'] : null
+            );
             $archivePath = $this->storage->finalize($temporary, $final);
             $archiveSize = filesize($archivePath) ?: 0;
             $archiveChecksum = hash_file('sha256', $archivePath);
@@ -218,6 +243,13 @@ final class BackupRunner
             ])) {
                 throw new RuntimeException('Не удалось завершить запись в истории backup.');
             }
+            $this->platform->log('info', 'Резервная копия создана.', [
+                'run_id' => $runId,
+                'profile' => $profileName,
+                'status' => $report->toArray()['status'],
+                'archive_size' => $archiveSize,
+                'encrypted' => $encrypted,
+            ]);
             return new BackupResult(true, $archivePath, $report->toArray());
         } catch (\Throwable $e) {
             $report->error($e->getMessage());
@@ -231,7 +263,11 @@ final class BackupRunner
                     'completedon' => $this->platform->now(),
                 ]);
             }
-            $this->platform->log('error', $e->getMessage());
+            $this->platform->log('error', $e->getMessage(), [
+                'run_id' => $runId,
+                'profile' => $profileName,
+                'mode' => $mode,
+            ]);
             throw $e;
         } finally {
             if ($workspace) {

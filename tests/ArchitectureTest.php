@@ -37,4 +37,23 @@ final class ArchitectureTest extends TestCase
         self::assertStringNotContainsString('class="mxBackupProfile"', $schema);
         self::assertStringNotContainsString('class="mxBackupRule"', $schema);
     }
+
+    public function testManagerProfileRowsNeverExposeEncryptionPassword()
+    {
+        require_once dirname(__DIR__) . '/core/components/mxbackup/processors/mgr/profile/store.php';
+        $row = \mxBackupProfileStoreHelper::row([
+            'name' => 'prod',
+            'mode' => 'prod',
+            'active' => true,
+            'format' => 'zip',
+            'encryption' => ['enabled' => true, 'password' => 'must-not-leak'],
+            'files' => ['include' => ['*'], 'exclude' => []],
+            'masking' => ['standard' => false],
+        ]);
+
+        self::assertTrue($row['encryption_enabled']);
+        self::assertTrue($row['encryption_password_set']);
+        self::assertArrayNotHasKey('encryption_password', $row);
+        self::assertStringNotContainsString('must-not-leak', json_encode($row));
+    }
 }

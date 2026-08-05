@@ -16,6 +16,22 @@ final class ConfigValidator
         if (!in_array($format, ['zip', 'tar.gz'], true)) {
             $errors[] = 'format должен быть zip или tar.gz';
         }
+        $encryption = isset($profile['encryption']) && is_array($profile['encryption'])
+            ? $profile['encryption']
+            : [];
+        if (!empty($encryption['enabled'])) {
+            if ($format !== 'zip') {
+                $errors[] = 'шифрование доступно только для ZIP';
+            }
+            if (!isset($encryption['password']) || (string) $encryption['password'] === '') {
+                $errors[] = 'для шифрования требуется пароль';
+            }
+            if (!class_exists('ZipArchive')
+                || !method_exists('ZipArchive', 'setEncryptionName')
+                || !defined('ZipArchive::EM_AES_256')) {
+                $errors[] = 'текущая сборка ext-zip не поддерживает AES-256';
+            }
+        }
         foreach (['files', 'database', 'masking'] as $section) {
             if (!isset($profile[$section]) || !is_array($profile[$section])) {
                 $errors[] = 'В профиле отсутствует секция ' . $section;

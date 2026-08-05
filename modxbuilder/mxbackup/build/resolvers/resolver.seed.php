@@ -46,6 +46,8 @@ if ($transport->xpdo) {
                 ? $profile['database'] : ['include_tables' => ['*'], 'exclude_tables' => []];
             $profile['masking'] = isset($profile['masking']) && is_array($profile['masking'])
                 ? $profile['masking'] : ['standard' => false, 'rules' => []];
+            $profile['encryption'] = isset($profile['encryption']) && is_array($profile['encryption'])
+                ? $profile['encryption'] : ['enabled' => false, 'password' => ''];
             $profile['masking']['rules'] = isset($profile['masking']['rules']) && is_array($profile['masking']['rules'])
                 ? $profile['masking']['rules'] : [];
 
@@ -90,6 +92,7 @@ if ($transport->xpdo) {
             'prod' => [
                 'name' => 'prod', 'mode' => 'prod', 'active' => true,
                 'description' => 'Полный аварийный backup', 'format' => 'tar.gz',
+                'encryption' => ['enabled' => false, 'password' => ''],
                 'files' => ['include' => ['*'], 'exclude' => ['core/cache/', 'core/packages/', 'assets/cache/']],
                 'database' => ['include_tables' => ['*'], 'exclude_tables' => []],
                 'masking' => ['standard' => false, 'rules' => []],
@@ -97,6 +100,7 @@ if ($transport->xpdo) {
             'dev' => [
                 'name' => 'dev', 'mode' => 'dev', 'active' => true,
                 'description' => 'Обезличенный backup для разработки', 'format' => 'tar.gz',
+                'encryption' => ['enabled' => false, 'password' => ''],
                 'files' => ['include' => ['*'], 'exclude' => ['core/cache/', 'core/packages/', 'core/config/', 'assets/cache/', 'assets/uploads/private/']],
                 'database' => ['include_tables' => ['*'], 'exclude_tables' => []],
                 'masking' => ['standard' => true, 'rules' => []],

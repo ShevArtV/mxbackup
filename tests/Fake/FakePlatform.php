@@ -11,6 +11,7 @@ final class FakePlatform implements PlatformInterface
     private $database;
     public $runs;
     public $mailer;
+    public $logs = [];
 
     public function __construct($root, DatabaseAdapterInterface $database)
     {
@@ -24,7 +25,7 @@ final class FakePlatform implements PlatformInterface
     public function getCorePath() { return $this->root . '/core/'; }
     public function getPlatformVersion() { return '2.8.8-pl'; }
     public function now() { return time(); }
-    public function log($level, $message, array $context = []) {}
+    public function log($level, $message, array $context = []) { $this->logs[] = compact('level', 'message', 'context'); }
     public function database() { return $this->database; }
     public function profiles() { return new FakeProfiles(); }
     public function runs() { return $this->runs; }

@@ -32,6 +32,7 @@ final class ConfigResolver
             'mode' => 'custom',
             'format' => isset($systemConfig['format']) ? $systemConfig['format'] : 'tar.gz',
             'storage_path' => isset($systemConfig['storage_path']) ? $systemConfig['storage_path'] : '',
+            'encryption' => ['enabled' => false, 'password' => ''],
             'files' => ['include' => ['*'], 'exclude' => []],
             'database' => ['include_tables' => ['*'], 'exclude_tables' => []],
             'masking' => ['standard' => false, 'rules' => []],

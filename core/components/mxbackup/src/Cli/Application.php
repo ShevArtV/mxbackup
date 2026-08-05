@@ -139,7 +139,7 @@ final class Application
     private function help()
     {
         echo <<<'TXT'
-mxBackup 1.0.0-beta
+mxBackup 1.1.0-beta
 
 Usage:
   mxbackup.php backup --profile=prod [options]

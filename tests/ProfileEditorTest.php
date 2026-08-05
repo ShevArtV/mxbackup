@@ -66,4 +66,51 @@ final class ProfileEditorTest extends TestCase
         self::assertSame(['shop_customers'], $editor->filterTables($tables, 'customer'));
         self::assertSame([], $editor->filterTables($tables, 'missing'));
     }
+
+    public function testEncryptionPasswordIsPreservedWhenEditFieldIsBlank()
+    {
+        $editor = new ProfileEditor();
+        $current = ['encryption' => ['enabled' => true, 'password' => 'existing-secret']];
+        $updated = $editor->update($current, [
+            'mode' => 'prod',
+            'format' => 'zip',
+            'encryption_enabled' => 1,
+            'encryption_password' => '',
+        ]);
+
+        self::assertTrue($updated['encryption']['enabled']);
+        self::assertSame('existing-secret', $updated['encryption']['password']);
+    }
+
+    public function testEncryptionRequiresZipAndPassword()
+    {
+        $editor = new ProfileEditor();
+        foreach ([
+            ['format' => 'tar.gz', 'password' => 'secret', 'message' => 'только для ZIP'],
+            ['format' => 'zip', 'password' => '', 'message' => 'задайте пароль'],
+        ] as $case) {
+            try {
+                $editor->update([], [
+                    'mode' => 'prod',
+                    'format' => $case['format'],
+                    'encryption_enabled' => 1,
+                    'encryption_password' => $case['password'],
+                ]);
+                self::fail('Invalid encryption configuration must be rejected');
+            } catch (InvalidArgumentException $e) {
+                self::assertStringContainsString($case['message'], $e->getMessage());
+            }
+        }
+    }
+
+    public function testDisablingEncryptionRemovesStoredPassword()
+    {
+        $updated = (new ProfileEditor())->update(
+            ['encryption' => ['enabled' => true, 'password' => 'existing-secret']],
+            ['mode' => 'prod', 'format' => 'zip', 'encryption_enabled' => 0]
+        );
+
+        self::assertFalse($updated['encryption']['enabled']);
+        self::assertSame('', $updated['encryption']['password']);
+    }
 }

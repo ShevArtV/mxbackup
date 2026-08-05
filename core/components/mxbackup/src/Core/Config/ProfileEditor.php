@@ -19,6 +19,24 @@ final class ProfileEditor
         }
 
         $current['format'] = $format;
+        $current['encryption'] = isset($current['encryption']) && is_array($current['encryption'])
+            ? $current['encryption']
+            : ['enabled' => false, 'password' => ''];
+        $encryptionEnabled = array_key_exists('encryption_enabled', $properties)
+            ? $this->boolean($properties['encryption_enabled'])
+            : !empty($current['encryption']['enabled']);
+        if (array_key_exists('encryption_password', $properties)
+            && (string) $properties['encryption_password'] !== '') {
+            $current['encryption']['password'] = (string) $properties['encryption_password'];
+        }
+        $current['encryption']['enabled'] = $encryptionEnabled;
+        if (!$encryptionEnabled) {
+            $current['encryption']['password'] = '';
+        } elseif ($format !== 'zip') {
+            throw new InvalidArgumentException('Шифрование доступно только для ZIP.');
+        } elseif (empty($current['encryption']['password'])) {
+            throw new InvalidArgumentException('Для шифрования задайте пароль архива.');
+        }
         $current['files'] = isset($current['files']) && is_array($current['files']) ? $current['files'] : [];
         $current['files']['include'] = $this->listValue(isset($properties['file_include']) ? $properties['file_include'] : ['*']);
         if (!$current['files']['include']) {

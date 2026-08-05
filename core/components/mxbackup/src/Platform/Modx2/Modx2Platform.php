@@ -27,6 +27,33 @@ final class Modx2Platform implements PlatformInterface
 
     public function log($level, $message, array $context = [])
     {
+        $logger = isset($this->modx->mxlogger) && is_object($this->modx->mxlogger)
+            ? $this->modx->mxlogger
+            : null;
+        if (!$logger) {
+            try {
+                $logger = $this->modx->getService(
+                    'mxlogger',
+                    'mxLogger',
+                    MODX_CORE_PATH . 'components/mxlogger/model/mxlogger/'
+                );
+            } catch (\Throwable $e) {
+                $logger = null;
+            }
+        }
+        if ($logger && method_exists($logger, 'log')) {
+            $options = ['skip_classes' => [__CLASS__]];
+            if (!empty($context['run_id'])) {
+                $options['process_uid'] = 'mxbackup_' . (int) $context['run_id'];
+            }
+            try {
+                $logger->log(['mxbackup', 'backup'], $level, (string) $message, $context, $options);
+                return;
+            } catch (\Throwable $e) {
+                // mxLogger is optional. A broken service must not hide the original event.
+            }
+        }
+
         $levels = ['debug' => \modX::LOG_LEVEL_DEBUG, 'info' => \modX::LOG_LEVEL_INFO, 'warning' => \modX::LOG_LEVEL_WARN, 'error' => \modX::LOG_LEVEL_ERROR];
         $suffix = $context ? ' ' . json_encode($context, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : '';
         $this->modx->log(isset($levels[$level]) ? $levels[$level] : \modX::LOG_LEVEL_ERROR, '[mxbackup] ' . $message . $suffix);

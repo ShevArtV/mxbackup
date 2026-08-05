@@ -52,4 +52,44 @@ final class ArchiveWriterTest extends TestCase
         foreach (glob($dir . '/*') as $file) @unlink($file);
         @rmdir($dir);
     }
+
+    public function testWritesAes256EncryptedZip()
+    {
+        if (!class_exists('ZipArchive')
+            || !method_exists('ZipArchive', 'setEncryptionName')
+            || !defined('ZipArchive::EM_AES_256')) {
+            self::markTestSkipped('AES-256 ZIP encryption is unavailable');
+        }
+        $dir = sys_get_temp_dir() . '/mxb-aes-' . bin2hex(random_bytes(5));
+        mkdir($dir);
+        file_put_contents($dir . '/file.txt', 'secret payload');
+        file_put_contents($dir . '/database.sql', 'SELECT secret;');
+        file_put_contents($dir . '/manifest.json', '{"encrypted":true}');
+        $archive = $dir . '/backup.zip';
+        $password = 'correct horse battery staple';
+        (new ArchiveWriter())->write($archive, 'zip', [[
+            'absolute' => $dir . '/file.txt', 'relative' => 'assets/file.txt', 'size' => 14,
+        ]], $dir . '/database.sql', $dir . '/manifest.json', $password);
+
+        $zip = new ZipArchive();
+        self::assertTrue($zip->open($archive) === true);
+        self::assertFalse($zip->getFromName('site/assets/file.txt'));
+        $zip->setPassword('wrong password');
+        self::assertFalse($zip->getFromName('database.sql'));
+        $zip->setPassword($password);
+        self::assertSame('secret payload', $zip->getFromName('site/assets/file.txt'));
+        self::assertSame('SELECT secret;', $zip->getFromName('database.sql'));
+        self::assertSame('{"encrypted":true}', $zip->getFromName('mxbackup-manifest.json'));
+        $zip->close();
+
+        foreach (glob($dir . '/*') as $file) @unlink($file);
+        @rmdir($dir);
+    }
+
+    public function testRejectsEncryptionForTarGz()
+    {
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('только для ZIP');
+        (new ArchiveWriter())->write('/tmp/not-created.tar.gz', 'tar.gz', [], '/tmp/db.sql', '/tmp/manifest.json', 'password');
+    }
 }
