@@ -19,8 +19,16 @@ final class RetentionPolicy
 
         $deleted = [];
         $cutoff = $days > 0 ? $now - ((int)$days * 86400) : 0;
+        // Свежие $count копий не удаляются никогда, в том числе по возрасту:
+        // иначе остановившийся cron через retention_days оставлял бы сайт вовсе
+        // без резервных копий. При $count = 0 ограничение снято сознательно, и
+        // защищать нечего.
+        $protected = $count > 0 ? (int)$count : 0;
         foreach ($files as $index => $file) {
-            $tooMany = $count > 0 && $index >= $count;
+            if ($index < $protected) {
+                continue;
+            }
+            $tooMany = $count > 0;
             $tooOld = $cutoff > 0 && $file['mtime'] < $cutoff;
             if (($tooMany || $tooOld) && @unlink($file['path'])) {
                 $deleted[] = $file['path'];

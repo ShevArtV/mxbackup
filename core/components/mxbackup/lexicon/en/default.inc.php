@@ -5,7 +5,6 @@ $_lang['mxbackup_intro'] = 'Run large backups from CLI/cron. Web runs are constr
 $_lang['mxbackup_profiles'] = 'Profiles'; $_lang['mxbackup_rules'] = 'Rules'; $_lang['mxbackup_history'] = 'History';
 $_lang['mxbackup_tables'] = 'Database tables'; $_lang['mxbackup_masking'] = 'Anonymization';
 $_lang['mxbackup_settings'] = 'Settings'; $_lang['mxbackup_settings_saved'] = 'Settings saved.';
-$_lang['mxbackup_prod_backup'] = 'Create prod backup'; $_lang['mxbackup_dev_backup'] = 'Create dev backup'; $_lang['mxbackup_dev_dryrun'] = 'Dev dry-run';
 $_lang['mxbackup_run_profile']='Profile'; $_lang['mxbackup_create_backup']='Create backup'; $_lang['mxbackup_dryrun']='Inspect contents';
 $_lang['mxbackup_run'] = 'Run mxBackup'; $_lang['mxbackup_running'] = 'Creating backup…'; $_lang['mxbackup_finished'] = 'Operation completed.';
 $_lang['mxbackup_confirm_run'] = 'Start backup?'; $_lang['mxbackup_confirm_dryrun'] = 'Inspect contents without creating an archive?'; $_lang['mxbackup_error'] = 'mxBackup error';

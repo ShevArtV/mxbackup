@@ -4,6 +4,14 @@
 .mxbackup-actions { background: #fff; border: 1px solid #dfe5e7 !important; border-radius: 6px; margin-bottom: 16px; padding: 12px 14px; }
 .mxbackup-actions .x-btn { margin-left: 8px; }
 .mxbackup-tabs .x-tab-panel-body { background: #fff; }
+/* Тема менеджера отбивает иконку от подписи только у кнопок без текста
+   (.x-btn-icon), поэтому у кнопки с текстом глиф прижимается вплотную. */
+.mxbackup-tabs .x-toolbar .x-btn-text.icon:before { margin-right: 6px; }
+/* ExtJS задаёт футеру кнопок ширину в px при рендере и не пересчитывает её при
+   изменении ширины контейнера: после ресайза окна или сворачивания дерева
+   кнопка «Сохранить» уезжала за границу панели. Ширину задаёт inline-стиль,
+   поэтому перебить его можно только !important. */
+.mxbackup-tabs .x-panel-footer { width: auto !important; }
 .mxbackup-toggle { border-radius: 12px; cursor: pointer; display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; }
 .mxbackup-toggle.on { background: #e2f3e8; color: #247a43; }
 .mxbackup-toggle.off { background: #f3e7e7; color: #9a4545; }

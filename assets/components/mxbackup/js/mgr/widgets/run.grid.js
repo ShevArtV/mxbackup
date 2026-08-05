@@ -26,7 +26,7 @@ MxBackup.grid.Runs = function (config) {
         ],
         tbar: [{
             text: _('mxbackup_refresh'),
-            iconCls: 'icon-refresh',
+            iconCls: 'icon icon-refresh',
             handler: this.refresh,
             scope: this
         }],
