@@ -45,6 +45,9 @@ final class Application
             if ($command === 'cleanup') {
                 return $this->cleanup($config);
             }
+            if ($command === 'restore-check' || $command === 'restore') {
+                return $this->restore($command, $config, $options);
+            }
             if ($command === 'backup' || $command === 'dry-run') {
                 $dry = $command === 'dry-run' || !empty($options['dry-run']);
                 $result = Bootstrap::runner($this->modx)->run($config, $dry);
@@ -108,6 +111,88 @@ final class Application
         return 0;
     }
 
+    private function restore($command, array $config, array $options)
+    {
+        if (empty($options['archive'])) {
+            throw new \RuntimeException('Укажите --archive=/absolute/path/backup.zip.');
+        }
+        $password = $this->archivePassword($options);
+        $runner = Bootstrap::restoreRunner($this->modx);
+        try {
+            $preflight = $runner->preflight(
+                $options['archive'],
+                $password,
+                isset($options['checksum']) ? $options['checksum'] : null
+            );
+        } catch (\RuntimeException $e) {
+            if ($password === null && strpos($e->getMessage(), 'проверьте пароль') !== false && $this->isInteractive()) {
+                $password = $this->promptPassword();
+                $preflight = $runner->preflight(
+                    $options['archive'],
+                    $password,
+                    isset($options['checksum']) ? $options['checksum'] : null
+                );
+            } else {
+                throw $e;
+            }
+        }
+        if ($command === 'restore-check') {
+            echo json_encode($preflight, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . PHP_EOL;
+            return 0;
+        }
+        if (empty($options['confirm'])) {
+            fwrite(STDERR, 'Preflight пройден. Для восстановления повторите команду с --confirm=' . $preflight['confirmation'] . PHP_EOL);
+            return 2;
+        }
+        $result = $runner->restore(
+            $config,
+            $options['archive'],
+            isset($options['scope']) ? $options['scope'] : 'all',
+            $options['confirm'],
+            $password,
+            isset($options['checksum']) ? $options['checksum'] : null
+        );
+        echo json_encode([
+            'success' => $result->isSuccess(),
+            'report' => $result->getReport(),
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . PHP_EOL;
+        return $result->isSuccess() ? 0 : 1;
+    }
+
+    private function archivePassword(array $options)
+    {
+        $environment = getenv('MXBACKUP_ARCHIVE_PASSWORD');
+        if ($environment !== false && $environment !== '') return (string)$environment;
+        if (empty($options['password-file'])) return null;
+        $path = realpath((string)$options['password-file']);
+        if ($path === false || !is_file($path) || !is_readable($path)) {
+            throw new \RuntimeException('Файл пароля не существует или недоступен.');
+        }
+        $password = rtrim((string)file_get_contents($path), "\r\n");
+        if ($password === '') throw new \RuntimeException('Файл пароля пуст.');
+        return $password;
+    }
+
+    private function isInteractive()
+    {
+        return function_exists('stream_isatty') ? @stream_isatty(STDIN) : (function_exists('posix_isatty') && @posix_isatty(STDIN));
+    }
+
+    private function promptPassword()
+    {
+        fwrite(STDERR, 'Пароль архива: ');
+        $stty = function_exists('shell_exec') ? @shell_exec('stty -g 2>/dev/null') : null;
+        if ($stty) @shell_exec('stty -echo 2>/dev/null');
+        $password = fgets(STDIN);
+        if ($stty) {
+            @shell_exec('stty ' . escapeshellarg(trim($stty)) . ' 2>/dev/null');
+            fwrite(STDERR, PHP_EOL);
+        }
+        $password = rtrim((string)$password, "\r\n");
+        if ($password === '') throw new \RuntimeException('Пароль не введён.');
+        return $password;
+    }
+
     private function parse(array $arguments)
     {
         $result = [];
@@ -139,7 +224,7 @@ final class Application
     private function help()
     {
         echo <<<'TXT'
-mxBackup 1.1.0-beta
+mxBackup 1.2.0-rc
 
 Usage:
   mxbackup.php backup --profile=prod [options]
@@ -147,6 +232,8 @@ Usage:
   mxbackup.php validate-config [options]
   mxbackup.php list-profiles [options]
   mxbackup.php cleanup [options]
+  mxbackup.php restore-check --archive=/absolute/path/backup.zip [options]
+  mxbackup.php restore --archive=/absolute/path/backup.zip --scope=all --confirm=TOKEN [options]
 
 Options:
   --profile=NAME
@@ -157,6 +244,13 @@ Options:
   --no-mail
   --dry-run
   --verbose
+  --archive=/absolute/path/backup.zip
+  --scope=all|files|database
+  --checksum=EXPECTED_SHA256
+  --confirm=TOKEN
+  --password-file=/absolute/path/password.txt
+
+Password may also be provided via MXBACKUP_ARCHIVE_PASSWORD. It is never printed.
 
 TXT;
     }

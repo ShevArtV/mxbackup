@@ -12,4 +12,5 @@ interface DatabaseAdapterInterface
     public function beginConsistentSnapshot();
     public function finishConsistentSnapshot($commit = true);
     public function isTransactional($table);
+    public function executeRestoreStatement($sql);
 }

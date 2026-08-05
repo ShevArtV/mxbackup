@@ -3,6 +3,7 @@
 namespace MxBackup;
 
 use MxBackup\Core\BackupRunner;
+use MxBackup\Core\RestoreRunner;
 use MxBackup\Core\Config\ConfigLoader;
 use MxBackup\Core\Config\ConfigResolver;
 use MxBackup\Core\Config\Defaults;
@@ -53,5 +54,10 @@ final class Bootstrap
     public static function runner(\modX $modx)
     {
         return new BackupRunner(self::platform($modx));
+    }
+
+    public static function restoreRunner(\modX $modx)
+    {
+        return new RestoreRunner(self::platform($modx));
     }
 }

@@ -7,6 +7,7 @@ use MxBackup\Core\Contract\DatabaseAdapterInterface;
 final class FakeDatabase implements DatabaseAdapterInterface
 {
     private $tables;
+    public $restoredStatements = [];
 
     public function __construct(array $tables)
     {
@@ -37,4 +38,5 @@ final class FakeDatabase implements DatabaseAdapterInterface
     public function beginConsistentSnapshot() {}
     public function finishConsistentSnapshot($commit = true) {}
     public function isTransactional($table) { return true; }
+    public function executeRestoreStatement($sql) { $this->restoredStatements[] = $sql; return 1; }
 }

@@ -12,6 +12,7 @@ MxBackup.request = function (action, params, callback) {
         listeners: {
             success: {fn: function (response) { if (callback) callback(response); }, scope: this},
             failure: {fn: function (response) {
+                MODx.msg.hide();
                 var message = response.message || '';
                 if (!message && response.data && response.data.length && response.data[0].msg) message = response.data[0].msg;
                 MODx.msg.alert(_('error'), message || _('mxbackup_error'));

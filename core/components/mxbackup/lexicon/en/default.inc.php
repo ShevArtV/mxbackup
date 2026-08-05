@@ -19,6 +19,7 @@ $_lang['mxbackup_archive']='Archive'; $_lang['mxbackup_size']='Size'; $_lang['mx
 $_lang['mxbackup_completed']='Completed'; $_lang['mxbackup_duration']='Duration'; $_lang['mxbackup_seconds_short']='s';
 $_lang['mxbackup_refresh']='Refresh'; $_lang['mxbackup_run_details']='Run details'; $_lang['mxbackup_run_type']='Run type';
 $_lang['mxbackup_run_type_dry']='Composition check'; $_lang['mxbackup_run_type_backup']='Archive creation'; $_lang['mxbackup_no_archive_dry']='No archive is created';
+$_lang['mxbackup_run_type_restore']='Restore';
 $_lang['mxbackup_status_running']='Running'; $_lang['mxbackup_status_success']='Success'; $_lang['mxbackup_status_warning']='Completed with warnings'; $_lang['mxbackup_status_error']='Error';
 $_lang['mxbackup_warnings']='Warnings'; $_lang['mxbackup_errors']='Errors'; $_lang['mxbackup_none']='None';
 $_lang['mxbackup_search_table']='Search any part of the table name';
@@ -36,6 +37,12 @@ $_lang['mxbackup_invalid_json']='Invalid JSON.'; $_lang['mxbackup_builtin_profil
 $_lang['mxbackup_profile_not_found']='Profile not found.'; $_lang['mxbackup_invalid_target_type']='Invalid target type.'; $_lang['mxbackup_invalid_action']='Invalid action.';
 $_lang['mxbackup_rule_exists']='A custom rule already exists for this target.'; $_lang['mxbackup_invalid_column_target']='Column target must be table.column.'; $_lang['mxbackup_invalid_json_target']='JSON target must be table.column.path.'; $_lang['mxbackup_tables_load_error']='Could not load database tables.'; $_lang['mxbackup_table_not_found']='Table not found.'; $_lang['mxbackup_invalid_table_selection']='Invalid selected table list.'; $_lang['mxbackup_profile_save_error']='Could not save profile.'; $_lang['mxbackup_tables_saved']='Table selection saved.';
 $_lang['mxbackup_config_valid']='Configuration is valid.';
+$_lang['mxbackup_restore']='Restore from archive'; $_lang['mxbackup_restore_password']='ZIP password'; $_lang['mxbackup_restore_scope']='Restore scope';
+$_lang['mxbackup_restore_scope_all']='Files and database'; $_lang['mxbackup_restore_scope_files']='Files only'; $_lang['mxbackup_restore_scope_database']='Database only';
+$_lang['mxbackup_restore_safety_notice']='mxBackup creates a safety backup of the current site before making changes. Restore runs synchronously; enable maintenance mode first.';
+$_lang['mxbackup_restore_check']='Check archive'; $_lang['mxbackup_restore_preflight_ok']='The archive passed preflight and is ready to restore.';
+$_lang['mxbackup_restore_confirmation']='Confirmation code'; $_lang['mxbackup_restore_type_token']='Enter the confirmation code to start changing files and the database.';
+$_lang['mxbackup_restore_running']='Restoring…'; $_lang['mxbackup_restore_finished']='Restore completed.'; $_lang['mxbackup_restore_safety_backup']='Safety backup';
 
 $_lang['area_mxbackup_general'] = 'General';
 $_lang['area_mxbackup_mail'] = 'Email';

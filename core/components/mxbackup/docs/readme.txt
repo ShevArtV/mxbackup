@@ -1,4 +1,4 @@
-mxBackup 1.1.0-beta
+mxBackup 1.2.0-rc
 ===================
 
 mxBackup создаёт два вида резервных копий сайта MODX:
@@ -16,6 +16,8 @@ mxBackup создаёт два вида резервных копий сайта
     php core/components/mxbackup/cli/mxbackup.php validate-config
     php core/components/mxbackup/cli/mxbackup.php dry-run --profile=dev
     php core/components/mxbackup/cli/mxbackup.php backup --profile=prod
+    php core/components/mxbackup/cli/mxbackup.php restore-check --archive=/absolute/path/backup.zip
+    php core/components/mxbackup/cli/mxbackup.php restore --archive=/absolute/path/backup.zip --scope=all --confirm=TOKEN
 
 По умолчанию архивы сохраняются рядом с корнем сайта в каталоге backups. Путь
 обязан находиться вне webroot; небезопасный путь отклоняется до начала работы.
@@ -32,9 +34,13 @@ docs/config.example.php.
 * validate-config — проверить конфигурацию и окружение;
 * list-profiles — вывести доступные профили;
 * cleanup — применить retention.
+* restore-check — проверить архив и получить код подтверждения;
+* restore — восстановить файлы, базу данных или оба компонента.
 
 Основные параметры: --profile, --storage-path, --config, --format=tar.gz|zip,
 --mail-to, --no-mail, --verbose.
+Для restore: --archive, --scope=all|files|database, --checksum, --confirm,
+--password-file. Пароль можно передать через MXBACKUP_ARCHIVE_PASSWORD.
 
 Шифрование ZIP
 --------------
@@ -45,6 +51,19 @@ docs/config.example.php.
 manifest, историю или логи. Сохраните пароль отдельно: восстановить его нельзя.
 Содержимое архива шифруется, но имена файлов остаются видимыми. Для распаковки
 нужен архиватор с поддержкой WinZip AES-256.
+
+Восстановление
+--------------
+
+Перед restore обязательна команда restore-check. Она проверяет manifest,
+checksum архива и database.sql, внутренние пути и версию MODX, затем возвращает
+код confirmation. Перед изменениями mxBackup автоматически создаёт страховочный
+production-backup; без него восстановление не начинается.
+
+Файлы восстанавливаются в merge-режиме: содержимое архива заменяет одноимённые
+файлы, но дополнительные файлы сайта не удаляются. База восстанавливает только
+таблицы из dump. До запуска включите внешний maintenance-режим и остановите
+процессы записи. MySQL DDL нельзя откатить одной транзакцией.
 
 Логирование
 -----------
@@ -65,6 +84,7 @@ Email выключен по умолчанию. Production-архив содер
 Ограничения первой версии
 -------------------------
 
-Нет восстановления, S3/FTP/WebDAV, очереди и расписания из CMP.
+Нет S3/FTP/WebDAV, очереди, расписания и автоматического управления внешним
+maintenance-режимом.
 Большие бэкапы запускайте из CLI/cron: веб-запуск зависит от таймаутов PHP и
 reverse proxy.

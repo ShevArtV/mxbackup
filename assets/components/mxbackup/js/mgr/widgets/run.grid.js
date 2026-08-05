@@ -37,6 +37,7 @@ MxBackup.grid.Runs = function (config) {
 
 Ext.extend(MxBackup.grid.Runs, MODx.grid.Grid, {
     renderType: function (value) {
+        if (value === 'restore') return _('mxbackup_run_type_restore');
         return value === 'dry_run' ? _('mxbackup_run_type_dry') : _('mxbackup_run_type_backup');
     },
     renderStatus: function (value, meta, record) {
@@ -66,11 +67,73 @@ Ext.extend(MxBackup.grid.Runs, MODx.grid.Grid, {
         var record = this.menu.record || {};
         var row = this.store.findExact('id', record.id);
         if (row < 0) return [];
-        return [{
+        var menu = [{
             text: _('mxbackup_run_details'),
             handler: function () { this.viewDetails(this, row); },
             scope: this
         }];
+        var item = this.store.getAt(row);
+        if (MxBackup.config.canRestore && item && item.get('run_type') === 'backup'
+            && item.get('archive_path') && (item.get('status') === 'success' || item.get('status') === 'warning')) {
+            menu.push({
+                text: _('mxbackup_restore'),
+                handler: function () { this.restoreArchive(item); },
+                scope: this
+            });
+        }
+        return menu;
+    },
+    restoreArchive: function (record) {
+        var password = new Ext.form.TextField({fieldLabel: _('mxbackup_restore_password'), inputType: 'password', anchor: '100%'});
+        var scope = new Ext.form.ComboBox({
+            fieldLabel: _('mxbackup_restore_scope'), hiddenName: 'scope', mode: 'local', triggerAction: 'all',
+            editable: false, forceSelection: true, value: 'all', anchor: '100%',
+            store: new Ext.data.ArrayStore({fields: ['id', 'name'], data: [
+                ['all', _('mxbackup_restore_scope_all')],
+                ['files', _('mxbackup_restore_scope_files')],
+                ['database', _('mxbackup_restore_scope_database')]
+            ]}),
+            valueField: 'id', displayField: 'name'
+        });
+        var form = new Ext.form.FormPanel({border: false, bodyStyle: 'padding:16px', labelWidth: 145, items: [
+            {xtype: 'displayfield', value: '<b>' + MxBackup.escape(record.get('archive_name')) + '</b>'},
+            password, scope,
+            {xtype: 'displayfield', value: '<div class="mxbackup-warning">' + MxBackup.escape(_('mxbackup_restore_safety_notice')) + '</div>'}
+        ]});
+        var win = new Ext.Window({
+            title: _('mxbackup_restore'), width: 560, height: 260, modal: true, layout: 'fit', items: [form],
+            buttons: [{text: _('mxbackup_restore_check'), handler: function () {
+                var passwordValue = password.getValue(), scopeValue = scope.getValue();
+                MxBackup.request('mgr/restore/preflight', {id: record.get('id'), password: passwordValue}, function (response) {
+                    var info = response.object || {};
+                    win.close();
+                    var summary = _('mxbackup_restore_preflight_ok') + '<br><b>' + _('mxbackup_archive') + ':</b> '
+                        + MxBackup.escape(info.archive_name || record.get('archive_name')) + '<br><b>'
+                        + _('mxbackup_report_files') + ':</b> ' + MxBackup.escape(info.site_files || 0) + '<br><b>'
+                        + _('mxbackup_mode') + ':</b> ' + MxBackup.escape(info.manifest && info.manifest.mode ? info.manifest.mode : '—') + '<br><b>'
+                        + _('mxbackup_restore_confirmation') + ':</b> <code>' + MxBackup.escape(info.confirmation || '') + '</code><br><br>'
+                        + MxBackup.escape(_('mxbackup_restore_type_token'));
+                    if (info.warnings && info.warnings.length) {
+                        summary += '<br><br><span class="mxbackup-status-warning">' + MxBackup.escape(info.warnings.join(' ')) + '</span>';
+                    }
+                    Ext.Msg.prompt(_('mxbackup_restore'), summary, function (answer, value) {
+                        if (answer !== 'ok') return;
+                        MODx.msg.status({title: _('mxbackup_restore'), message: _('mxbackup_restore_running'), dontHide: true});
+                        MxBackup.request('mgr/restore/create', {
+                            id: record.get('id'), password: passwordValue, scope: scopeValue, confirmation: value
+                        }, function (restoreResponse) {
+                            MODx.msg.hide();
+                            var report = restoreResponse.object && restoreResponse.object.report ? restoreResponse.object.report : {};
+                            var safety = report.stats && report.stats.safety_backup ? report.stats.safety_backup : '';
+                            MODx.msg.alert(_('mxbackup_restore'), _('mxbackup_restore_finished')
+                                + (safety ? '<br><b>' + _('mxbackup_restore_safety_backup') + ':</b> <code>' + MxBackup.escape(safety) + '</code>' : ''));
+                            this.refresh();
+                        }.createDelegate(this));
+                    }, this, false, '');
+                }.createDelegate(this));
+            }, scope: this}, {text: _('cancel'), handler: function () { win.close(); }}]
+        });
+        win.show();
     },
     viewDetails: function (grid, row) {
         var record = grid.store.getAt(row);

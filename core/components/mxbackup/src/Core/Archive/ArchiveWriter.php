@@ -61,6 +61,11 @@ final class ArchiveWriter
         if (!$zip->addFile($source, $entry)) {
             throw new RuntimeException('Не удалось добавить в ZIP: ' . $entry);
         }
+        if (method_exists($zip, 'setExternalAttributesName')) {
+            $mode = @fileperms($source);
+            $mode = $mode === false ? 0644 : ($mode & 0777);
+            $zip->setExternalAttributesName($entry, defined('ZipArchive::OPSYS_UNIX') ? ZipArchive::OPSYS_UNIX : 3, (0100000 | $mode) << 16);
+        }
         if ($password !== null && $password !== ''
             && !$zip->setEncryptionName($entry, ZipArchive::EM_AES_256, $password)) {
             throw new RuntimeException('Не удалось зашифровать элемент ZIP: ' . $entry);
@@ -99,7 +104,8 @@ final class ArchiveWriter
             }
             $tar->addFile($sqlPath, 'database.sql');
             $tar->addFile($manifestPath, 'mxbackup-manifest.json');
-            $tar->compress(Phar::GZ);
+            $compressed = $tar->compress(Phar::GZ);
+            unset($compressed);
             unset($tar);
             @unlink($tarPath);
         } catch (\Exception $e) {

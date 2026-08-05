@@ -38,6 +38,7 @@ class mxBackupIndexManagerController extends modExtraManagerController
             'connectorUrl' => $this->assetsUrl . 'connector.php',
             'canManage' => $this->modx->hasPermission('mxbackup_manage'),
             'canRun' => $this->modx->hasPermission('mxbackup_run'),
+            'canRestore' => $this->modx->hasPermission('mxbackup_restore'),
             'defaultProfile' => $this->modx->getOption('mxbackup.default_profile', null, 'prod'),
         ]) . '; Ext.onReady(function(){MODx.add({xtype:"mxbackup-panel-home"});});</script>');
     }

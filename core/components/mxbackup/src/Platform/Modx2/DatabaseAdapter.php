@@ -89,6 +89,17 @@ final class DatabaseAdapter implements DatabaseAdapterInterface
         return $row && in_array(strtolower((string)$row['Engine']), ['innodb', 'ndbcluster'], true);
     }
 
+    public function executeRestoreStatement($sql)
+    {
+        $result = $this->modx->exec((string)$sql);
+        if ($result === false) {
+            $error = $this->modx->errorInfo();
+            $message = is_array($error) && !empty($error[2]) ? (string)$error[2] : 'неизвестная ошибка PDO';
+            throw new RuntimeException('Ошибка SQL при восстановлении: ' . $message);
+        }
+        return $result;
+    }
+
     private function query($sql)
     {
         $statement = $this->modx->query($sql);

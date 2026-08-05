@@ -23,7 +23,7 @@ use RuntimeException;
 
 final class BackupRunner
 {
-    const VERSION = '1.1.0-beta';
+    const VERSION = '1.2.0-rc';
 
     private $platform;
     private $storage;
