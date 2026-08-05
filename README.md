@@ -4,6 +4,9 @@
 создаёт архив файлов сайта и SQL-дамп базы данных из CLI, cron или manager,
 сохраняет manifest и историю запусков.
 
+- [Страница пакета на modstore](https://modstore.pro/packages/utilities/mxbackup)
+- [Релиз 1.0.0-beta на GitHub](https://github.com/ShevArtV/mxbackup/releases/tag/1.0.0-beta)
+
 Пакет поддерживает два готовых профиля:
 
 - `prod` — полная аварийная копия без изменения данных;
@@ -15,7 +18,9 @@
 
 ## Установка
 
-Установите transport-пакет через «Пакеты → Установщик» в MODX. После установки
+Скачайте transport из [GitHub Releases](https://github.com/ShevArtV/mxbackup/releases)
+или установите пакет через modstore, затем запустите установку в MODX через
+«Пакеты → Установщик». После установки
 в меню «Пакеты» появится mxBackup, а в базе будут созданы профили `prod` и `dev`.
 
 По умолчанию архивы сохраняются в каталоге `backups` рядом с webroot. Путь
