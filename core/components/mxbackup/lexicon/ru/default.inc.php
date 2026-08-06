@@ -131,6 +131,7 @@ $_lang['mxbackup_table_not_found'] = 'Таблица не найдена.';
 $_lang['mxbackup_invalid_table_selection'] = 'Некорректный список выбранных таблиц.';
 $_lang['mxbackup_profile_save_error'] = 'Не удалось сохранить профиль.';
 $_lang['mxbackup_tables_saved'] = 'Состав таблиц сохранён.';
+$_lang['mxbackup_validate_config'] = 'Проверить конфигурацию';
 $_lang['mxbackup_config_valid'] = 'Конфигурация корректна.';
 $_lang['mxbackup_restore'] = 'Восстановить из архива';
 $_lang['mxbackup_restore_password'] = 'Пароль ZIP';

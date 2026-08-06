@@ -35,6 +35,7 @@ $_lang['mxbackup_invalid_name']='Use letters, digits, _ and - only.'; $_lang['mx
 $_lang['mxbackup_invalid_json']='Invalid JSON.'; $_lang['mxbackup_builtin_profile_remove']='Built-in prod and dev profiles cannot be removed.'; $_lang['mxbackup_builtin_profile_rename']='Built-in prod and dev profiles cannot be renamed.'; $_lang['mxbackup_rule_not_found']='Rule not found.';
 $_lang['mxbackup_profile_not_found']='Profile not found.'; $_lang['mxbackup_invalid_target_type']='Invalid target type.'; $_lang['mxbackup_invalid_action']='Invalid action.';
 $_lang['mxbackup_rule_exists']='A custom rule already exists for this target.'; $_lang['mxbackup_invalid_column_target']='Column target must be table.column.'; $_lang['mxbackup_invalid_json_target']='JSON target must be table.column.path.'; $_lang['mxbackup_tables_load_error']='Could not load database tables.'; $_lang['mxbackup_table_not_found']='Table not found.'; $_lang['mxbackup_invalid_table_selection']='Invalid selected table list.'; $_lang['mxbackup_profile_save_error']='Could not save profile.'; $_lang['mxbackup_tables_saved']='Table selection saved.';
+$_lang['mxbackup_validate_config']='Validate configuration';
 $_lang['mxbackup_config_valid']='Configuration is valid.';
 $_lang['mxbackup_restore']='Restore from archive'; $_lang['mxbackup_restore_password']='ZIP password'; $_lang['mxbackup_restore_scope']='Restore scope';
 $_lang['mxbackup_restore_scope_all']='Files and database'; $_lang['mxbackup_restore_scope_files']='Files only'; $_lang['mxbackup_restore_scope_database']='Database only';

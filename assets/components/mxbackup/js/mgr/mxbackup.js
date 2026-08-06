@@ -83,6 +83,11 @@ MxBackup.combo.Table = function (config) {
 };
 Ext.extend(MxBackup.combo.Table, MODx.combo.ComboBox);
 Ext.reg('mxbackup-combo-table', MxBackup.combo.Table);
+MxBackup.validateConfig = function (profile) {
+    MxBackup.request('mgr/config/validate', {profile: profile}, function (response) {
+        MODx.msg.alert(_('mxbackup_validate_config'), response.message || _('mxbackup_config_valid'));
+    });
+};
 MxBackup.run = function (profile, dryRun) {
     if (!MxBackup.config.canRun) return;
     Ext.Msg.confirm(_('mxbackup_run'), dryRun ? _('mxbackup_confirm_dryrun') : _('mxbackup_confirm_run'), function (answer) {

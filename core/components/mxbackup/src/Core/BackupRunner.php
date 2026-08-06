@@ -26,7 +26,7 @@ final class BackupRunner
     // Единственная строка, которой ядро линии MODX 2 отличается от линии MODX 3:
     // версия попадает в manifest архива, а нумерация у линий разная
     // (мажор означает платформу).
-    const VERSION = '1.2.2-rc';
+    const VERSION = '1.3.0-rc';
 
     private $platform;
     private $storage;

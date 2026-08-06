@@ -6,12 +6,18 @@ MxBackup.panel.Home = function (config) {
         items: [
             {xtype: 'panel', cls: 'mxbackup-hero', border: false, html: '<h2>' + _('mxbackup') + '</h2><p>' + _('mxbackup_intro') + '</p>'},
             {
-                xtype: 'panel', cls: 'mxbackup-actions', border: false, layout: 'hbox', layoutConfig: {align:'middle'},
-                items: [
-                    {xtype: 'displayfield', value: '<b>' + _('mxbackup_run_profile') + '</b>', width: 90},
+                // Тулбар, а не hbox: hbox расставляет элементы абсолютным left,
+                // посчитанным ДО применения CSS темы, и после сужения кнопок
+                // темой между ними остаются дыры в 130-150px. Пересчёт
+                // doLayout() их не убирает — ExtJS кэширует замеры.
+                xtype: 'panel', cls: 'mxbackup-actions', border: false,
+                tbar: [
+                    '<b>' + _('mxbackup_run_profile') + '</b>',
                     runProfile,
-                    {xtype: 'button', cls: 'primary-button', text: _('mxbackup_create_backup'), disabled: !MxBackup.config.canRun, handler: function () { var record = runProfile.store.getAt(runProfile.store.findExact('id', runProfile.getValue())); if (record) MxBackup.run(record.get('name'), false); }},
-                    {xtype: 'button', text: _('mxbackup_dryrun'), disabled: !MxBackup.config.canRun, handler: function () { var record = runProfile.store.getAt(runProfile.store.findExact('id', runProfile.getValue())); if (record) MxBackup.run(record.get('name'), true); }}
+                    '-',
+                    {cls: 'primary-button', text: _('mxbackup_create_backup'), disabled: !MxBackup.config.canRun, handler: function () { var record = runProfile.store.getAt(runProfile.store.findExact('id', runProfile.getValue())); if (record) MxBackup.run(record.get('name'), false); }},
+                    {text: _('mxbackup_dryrun'), disabled: !MxBackup.config.canRun, handler: function () { var record = runProfile.store.getAt(runProfile.store.findExact('id', runProfile.getValue())); if (record) MxBackup.run(record.get('name'), true); }},
+                    {text: _('mxbackup_validate_config'), handler: function () { var record = runProfile.store.getAt(runProfile.store.findExact('id', runProfile.getValue())); if (record) MxBackup.validateConfig(record.get('name')); }}
                 ],
                 listeners: {afterrender: {fn: function () {
                     runProfile.store.on('load', function (store) {

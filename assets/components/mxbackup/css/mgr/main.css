@@ -1,7 +1,8 @@
 .mxbackup-hero { background: linear-gradient(135deg,#153f45,#246d75); border-radius: 8px; color: #fff; margin-bottom: 12px; padding: 20px 24px; }
 .mxbackup-hero h2 { color: #fff; font-size: 24px; margin: 0 0 6px; }
 .mxbackup-hero p { color: rgba(255,255,255,.86); line-height: 1.5; margin: 0; }
-.mxbackup-actions { background: #fff; border: 1px solid #dfe5e7 !important; border-radius: 6px; margin-bottom: 16px; padding: 12px 14px; }
+.mxbackup-actions { background: #fff; border: 1px solid #dfe5e7 !important; border-radius: 6px; margin-bottom: 16px; }
+.mxbackup-actions .x-toolbar { background: none; border: 0; padding: 10px 12px; }
 .mxbackup-actions .x-btn { margin-left: 8px; }
 .mxbackup-tabs .x-tab-panel-body { background: #fff; }
 /* Тема менеджера отбивает иконку от подписи только у кнопок без текста
