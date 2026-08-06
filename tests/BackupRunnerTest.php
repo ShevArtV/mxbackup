@@ -54,6 +54,49 @@ final class BackupRunnerTest extends TestCase
         @unlink($site . '/index.php'); @rmdir($storage); @rmdir($site); @rmdir($base);
     }
 
+    /**
+     * Убитый извне запуск (SIGKILL минует finally) оставляет рабочий каталог с
+     * незамаскированным дампом и недоделанный архив. Следующий запуск обязан
+     * подчистить их и сказать об этом в отчёте.
+     */
+    public function testRunRemovesArtifactsLeftByKilledRun()
+    {
+        $base = sys_get_temp_dir() . '/mxb-orphans-' . bin2hex(random_bytes(5));
+        $site = $base . '/site';
+        $storage = $base . '/backups';
+        mkdir($site, 0700, true);
+        mkdir($storage, 0700, true);
+        file_put_contents($site . '/index.php', '<?php echo "ok";');
+
+        $orphanWorkspace = $storage . '/.mxbackup-0123456789abcdef';
+        mkdir($orphanWorkspace, 0700);
+        file_put_contents($orphanWorkspace . '/database.sql', 'INSERT INTO users VALUES ("person@example.com")');
+        $orphanArchive = $storage . '/.mxbackup-prod-20260101-000000.part.tar';
+        file_put_contents($orphanArchive, 'partial');
+
+        $platform = new FakePlatform($site, new FakeDatabase(['modx_contacts' => [['id' => 1, 'title' => 'Keep me']]]));
+        $config = (new ConfigResolver())->resolve(Defaults::values(), [], [], [
+            'storage_path' => $storage, 'format' => 'zip', 'profile' => 'prod',
+        ], []);
+
+        $result = (new BackupRunner($platform))->run($config, false);
+
+        self::assertTrue($result->isSuccess());
+        self::assertDirectoryDoesNotExist($orphanWorkspace);
+        self::assertFileDoesNotExist($orphanArchive);
+        $warnings = $result->getReport()['warnings'];
+        self::assertCount(1, $warnings);
+        self::assertStringContainsString('.mxbackup-0123456789abcdef', $warnings[0]);
+        self::assertStringContainsString('.mxbackup-prod-20260101-000000.part.tar', $warnings[0]);
+        self::assertContains('warning', array_column($platform->logs, 'level'));
+
+        @unlink($result->getArchivePath());
+        foreach (glob($storage . '/*') ?: [] as $file) @unlink($file);
+        @unlink($storage . '/.mxbackup.lock');
+        @unlink($site . '/index.php');
+        @rmdir($storage); @rmdir($site); @rmdir($base);
+    }
+
     public function testConfigurationErrorsAreLoggedBeforeRunHistoryStarts()
     {
         $database = new FakeDatabase([]);

@@ -34,6 +34,59 @@ final class LocalStorage
         return $finalArchive;
     }
 
+    /**
+     * Удаляет осиротевшие временные артефакты прошлых запусков: недоделанные
+     * архивы `.<имя>.part.<ext>` и рабочие каталоги `.mxbackup-<hex>`.
+     *
+     * Штатно их убирает блок finally, но при SIGKILL (обрыв SSH, лимит хостера,
+     * OOM) он не выполняется. Мусор — полбеды: в рабочем каталоге лежит
+     * незамаскированный `database.sql`, и он не должен переживать упавший запуск.
+     *
+     * Вызывать ТОЛЬКО при захваченном RunLock: блокировка общая для backup и
+     * restore, поэтому под ней чужих живых артефактов быть не может. Свой
+     * собственный рабочий каталог, если он создан раньше блокировки (так делает
+     * restore — он распаковывает архив до неё), передаётся в $keep.
+     *
+     * @param string[] $keep Пути или имена артефактов, которые трогать нельзя.
+     * @return string[] Имена удалённых артефактов.
+     */
+    public function purgeOrphans($storagePath, array $keep = [])
+    {
+        $protected = [];
+        foreach ($keep as $path) {
+            if ((string) $path !== '') {
+                $protected[basename((string) $path)] = true;
+            }
+        }
+
+        $storagePath = rtrim($storagePath, DIRECTORY_SEPARATOR);
+        if (!is_dir($storagePath)) {
+            return [];
+        }
+
+        $entries = scandir($storagePath);
+        if ($entries === false) {
+            return [];
+        }
+
+        $removed = [];
+        foreach ($entries as $entry) {
+            if ($entry === '.' || $entry === '..' || isset($protected[$entry])) {
+                continue;
+            }
+            $path = $storagePath . DIRECTORY_SEPARATOR . $entry;
+            if (is_dir($path) && preg_match('/^\.mxbackup-[0-9a-f]{16}$/', $entry)) {
+                $this->removeTree($path);
+                $removed[] = $entry;
+            } elseif (is_file($path) && preg_match('/^\..+\.part\.[a-z0-9.]+$/i', $entry)) {
+                @unlink($path);
+                $removed[] = $entry;
+            }
+        }
+
+        return $removed;
+    }
+
     public function removeTree($path)
     {
         if (!is_dir($path)) {

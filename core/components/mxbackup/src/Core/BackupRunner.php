@@ -23,6 +23,9 @@ use RuntimeException;
 
 final class BackupRunner
 {
+    // Единственная строка, которой ядро линии MODX 2 отличается от линии MODX 3:
+    // версия попадает в manifest архива, а нумерация у линий разная
+    // (мажор означает платформу).
     const VERSION = '1.2.1-rc';
 
     private $platform;
@@ -68,6 +71,23 @@ final class BackupRunner
             $this->storage->ensureDirectory($storagePath);
             $storagePath = $this->validator->validate($storagePath, $siteRoot, !empty($config['allow_web_storage']));
             $this->lock->acquire($storagePath, isset($config['lock_ttl_minutes']) ? $config['lock_ttl_minutes'] : 720);
+
+            // Под блокировкой живых временных артефактов быть не может, значит
+            // всё найденное осталось от запуска, убитого извне (SIGKILL минует
+            // finally). Исключение — вложенный запуск: restore зовёт нас ради
+            // страховочной копии и передаёт свой рабочий каталог в
+            // preserve_paths. Молча не удаляем: в отчёте видно, что подчистили.
+            $preserve = isset($config['preserve_paths']) && is_array($config['preserve_paths'])
+                ? $config['preserve_paths']
+                : [];
+            $orphans = $this->storage->purgeOrphans($storagePath, $preserve);
+            if ($orphans) {
+                $report->warning('Удалены незавершённые артефакты прошлого запуска: ' . implode(', ', $orphans));
+                $this->platform->log('warning', 'Удалены незавершённые артефакты прошлого запуска.', [
+                    'profile' => $profileName,
+                    'artifacts' => $orphans,
+                ]);
+            }
 
             $runId = $this->platform->runs()->start([
                 'profile' => $profileName,

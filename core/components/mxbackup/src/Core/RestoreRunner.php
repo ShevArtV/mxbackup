@@ -89,6 +89,11 @@ final class RestoreRunner
             }
             $this->assertCompatible($info);
 
+            // Страховочная копия — это вложенный BackupRunner в том же каталоге
+            // хранения. Он чистит осиротевшие временные артефакты, поэтому наш
+            // рабочий каталог с уже распакованным архивом передаётся как
+            // защищённый — иначе restore потеряет данные, которые восстанавливает.
+            $safetyConfig['preserve_paths'] = [$workspace];
             $safetyArchive = $this->createSafetyBackup($safetyConfig);
             $report->set('operation', 'restore');
             $report->set('scope', $scope);
@@ -102,6 +107,15 @@ final class RestoreRunner
             }
 
             $this->lock->acquire($storagePath, isset($safetyConfig['lock_ttl_minutes']) ? $safetyConfig['lock_ttl_minutes'] : 720);
+
+            // Артефакты, пережившие убитый извне запуск (SIGKILL минует finally):
+            // среди них незамаскированный database.sql, поэтому чистим и здесь.
+            // $workspace создан до блокировки — исключаем его из уборки.
+            $orphans = $this->storage->purgeOrphans($storagePath, [$workspace]);
+            if ($orphans) {
+                $report->warning('Удалены незавершённые артефакты прошлого запуска: ' . implode(', ', $orphans));
+            }
+
             $this->platform->log('warning', 'Запуск восстановления из резервной копии.', [
                 'scope' => $scope,
                 'archive' => $info['archive_name'],
