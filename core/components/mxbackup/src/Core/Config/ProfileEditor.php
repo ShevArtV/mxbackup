@@ -52,8 +52,78 @@ final class ProfileEditor
             : $this->boolean(isset($properties['standard_masking']) ? $properties['standard_masking'] : false);
         $current['masking']['rules'] = isset($current['masking']['rules']) && is_array($current['masking']['rules'])
             ? $current['masking']['rules'] : [];
+        $current['remote'] = $this->remoteSection($current, $properties);
 
         return $current;
+    }
+
+    /**
+     * Секция удалённого хранилища из полей формы.
+     *
+     * ⚠️ Пустой секрет означает «не менять», а не «стереть»: форма его обратно
+     * не показывает (как и пароль архива), и сохранение профиля ради правки
+     * префикса иначе молча обнуляло бы доступ к бакету.
+     *
+     * @param array<string, mixed> $current
+     * @param array<string, mixed> $properties
+     * @return array<string, mixed>
+     */
+    private function remoteSection(array $current, array $properties)
+    {
+        $remote = isset($current['remote']) && is_array($current['remote'])
+            ? $current['remote']
+            : Defaults::remoteTemplate();
+        $s3 = isset($remote['s3']) && is_array($remote['s3']) ? $remote['s3'] : [];
+
+        if (array_key_exists('remote_driver', $properties)) {
+            $driver = trim((string) $properties['remote_driver']);
+            if (!in_array($driver, ['', 'none', 's3'], true)) {
+                throw new InvalidArgumentException('Недопустимый драйвер удалённого хранилища.');
+            }
+            $remote['driver'] = $driver === 'none' ? '' : $driver;
+        }
+
+        if (array_key_exists('remote_keep_local', $properties)) {
+            $keep = (int) $properties['remote_keep_local'];
+            if ($keep < 1) {
+                throw new InvalidArgumentException('Локально должна оставаться хотя бы одна копия.');
+            }
+            $remote['keep_local'] = $keep;
+        }
+
+        $retention = isset($remote['retention']) && is_array($remote['retention'])
+            ? $remote['retention']
+            : ['days' => 0, 'count' => 0];
+        foreach (['days' => 'remote_retention_days', 'count' => 'remote_retention_count'] as $key => $field) {
+            if (array_key_exists($field, $properties)) {
+                $retention[$key] = max(0, (int) $properties[$field]);
+            }
+        }
+        $remote['retention'] = $retention;
+
+        foreach (['bucket', 'region', 'prefix', 'endpoint', 'storage_class', 'access_key'] as $field) {
+            if (array_key_exists('remote_s3_' . $field, $properties)) {
+                $s3[$field] = trim((string) $properties['remote_s3_' . $field]);
+            }
+        }
+        foreach (['secret_key', 'session_token'] as $field) {
+            if (array_key_exists('remote_s3_' . $field, $properties)
+                && (string) $properties['remote_s3_' . $field] !== '') {
+                $s3[$field] = (string) $properties['remote_s3_' . $field];
+            }
+        }
+
+        // Ключ стёрли осознанно — значит доступ должен браться из окружения или
+        // роли инстанса, и секрет обязан уйти следом: иначе останется половина
+        // пары, при которой цепочка поиска ведёт себя непредсказуемо.
+        if (array_key_exists('remote_s3_access_key', $properties) && $s3['access_key'] === '') {
+            $s3['secret_key'] = '';
+            $s3['session_token'] = '';
+        }
+
+        $remote['s3'] = $s3;
+
+        return $remote;
     }
 
     public function applyTableSelection(array $config, array $available, array $selected, $mode)

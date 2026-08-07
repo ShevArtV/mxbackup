@@ -17,16 +17,18 @@ use MxBackup\Core\Report\ManifestBuilder;
 use MxBackup\Core\Report\RunReport;
 use MxBackup\Core\Storage\LocalStorage;
 use MxBackup\Core\Storage\PathValidator;
+use MxBackup\Core\Storage\Remote\RemoteStorageFactory;
+use MxBackup\Core\Storage\RemoteRetentionPolicy;
 use MxBackup\Core\Storage\RetentionPolicy;
 use MxBackup\Core\Storage\RunLock;
 use RuntimeException;
 
-final class BackupRunner
+class BackupRunner
 {
     // Единственная строка, которой ядро линии MODX 2 отличается от линии MODX 3:
     // версия попадает в manifest архива, а нумерация у линий разная
     // (мажор означает платформу).
-    const VERSION = '1.3.0-rc';
+    const VERSION = '1.4.0-rc';
 
     private $platform;
     private $storage;
@@ -242,10 +244,26 @@ final class BackupRunner
                 $report->warning($mailResult->getMessage());
             }
             $report->set('mail', $mailResult->toArray());
+
+            $uploaded = $this->uploadToRemote($profile, $archivePath, $archiveChecksum, $report, $runId);
+
+            // Локальная глубина при удавшейся выгрузке считается по keep_local:
+            // держать на машине семь копий по 150 МБ, когда они же лежат в
+            // облаке, — это диск, который рано или поздно кончится.
+            //
+            // ⚠️ Минимум — одна копия. Последний архив остаётся на диске всегда:
+            // он уже создан, места не добавит, а восстановление из него не
+            // зависит ни от сети, ни от того, жив ли доступ к бакету.
+            $localCount = isset($config['retention']['count']) ? (int) $config['retention']['count'] : 10;
+            $remote = isset($profile['remote']) && is_array($profile['remote']) ? $profile['remote'] : [];
+            if ($uploaded && array_key_exists('keep_local', $remote)) {
+                $localCount = max(1, (int) $remote['keep_local']);
+            }
+
             $deleted = (new RetentionPolicy())->cleanup(
                 $storagePath,
                 isset($config['retention']['days']) ? (int)$config['retention']['days'] : 30,
-                isset($config['retention']['count']) ? (int)$config['retention']['count'] : 10,
+                $localCount,
                 $this->platform->now()
             );
             $report->set('retention_deleted', $deleted);
@@ -298,6 +316,101 @@ final class BackupRunner
             }
             $this->lock->release();
         }
+    }
+
+    /**
+     * Выгрузить готовый архив в удалённое хранилище и почистить там старьё.
+     *
+     * ⚠️ Неудача выгрузки — предупреждение, а не ошибка прогона: копия снята и
+     * лежит на диске, то есть работа сделана. Падать здесь значило бы объявить
+     * успешный бэкап неудавшимся из-за недоступной сети — и, что хуже, приучить
+     * смотреть на красный статус как на норму.
+     *
+     * Из этого же следует, что при неудаче локальная ротация считается по
+     * обычному retention, а не по keep_local: удалять с диска то, что не уехало,
+     * нельзя (см. вызывающий код — он смотрит на возвращённое значение).
+     *
+     * @return bool Выгрузка удалась.
+     */
+    private function uploadToRemote(array $profile, $archivePath, $archiveChecksum, RunReport $report, $runId)
+    {
+        try {
+            $storage = $this->createRemoteStorage($profile);
+        } catch (\Throwable $e) {
+            $report->warning('Удалённое хранилище настроено неверно: ' . $e->getMessage());
+            $report->set('remote', ['status' => 'misconfigured', 'error' => $e->getMessage()]);
+
+            return false;
+        }
+
+        if ($storage === null) {
+            return false;
+        }
+
+        $startedAt = $this->platform->now();
+        $name = basename($archivePath);
+
+        try {
+            $location = $storage->upload($archivePath, $name, [
+                'sha256' => (string) $archiveChecksum,
+                'profile' => isset($profile['name']) ? (string) $profile['name'] : '',
+                'mxbackup' => self::VERSION,
+            ]);
+        } catch (\Throwable $e) {
+            $report->warning('Архив не выгружен в ' . $storage->describe() . ': ' . $e->getMessage());
+            $report->set('remote', [
+                'status' => 'error',
+                'storage' => $storage->describe(),
+                'error' => $e->getMessage(),
+            ]);
+            $this->platform->log('warning', 'Выгрузка архива в удалённое хранилище не удалась.', [
+                'run_id' => $runId,
+                'storage' => $storage->describe(),
+                'error' => $e->getMessage(),
+            ]);
+
+            return false;
+        }
+
+        $retention = new RemoteRetentionPolicy();
+        $cleanup = $retention->cleanup(
+            $storage,
+            isset($profile['remote']['retention']['days']) ? (int) $profile['remote']['retention']['days'] : 0,
+            isset($profile['remote']['retention']['count']) ? (int) $profile['remote']['retention']['count'] : 0,
+            $this->platform->now()
+        );
+        foreach ($cleanup['errors'] as $error) {
+            $report->warning('Не удалось убрать старый архив из хранилища: ' . $error);
+        }
+
+        $report->set('remote', [
+            'status' => 'ok',
+            'storage' => $storage->describe(),
+            'location' => $location,
+            'seconds' => max(0, $this->platform->now() - $startedAt),
+            'deleted' => $cleanup['deleted'],
+        ]);
+        $this->platform->log('info', 'Архив выгружен в удалённое хранилище.', [
+            'run_id' => $runId,
+            'location' => $location,
+            'deleted' => count($cleanup['deleted']),
+        ]);
+
+        return true;
+    }
+
+    /**
+     * Сборка удалённого хранилища по профилю.
+     *
+     * protected ради тестов: иначе поведение при недоступном хранилище
+     * проверялось бы только реальной сетевой ошибкой, то есть медленно и
+     * недетерминированно.
+     *
+     * @return \MxBackup\Core\Contract\RemoteStorageInterface|null
+     */
+    protected function createRemoteStorage(array $profile)
+    {
+        return RemoteStorageFactory::create($profile);
     }
 
     private function safeName($value)

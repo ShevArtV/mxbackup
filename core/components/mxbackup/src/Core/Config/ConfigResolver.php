@@ -33,6 +33,10 @@ final class ConfigResolver
             'format' => isset($systemConfig['format']) ? $systemConfig['format'] : 'tar.gz',
             'storage_path' => isset($systemConfig['storage_path']) ? $systemConfig['storage_path'] : '',
             'encryption' => ['enabled' => false, 'password' => ''],
+            // Скелет секции обязателен: иначе профиль, где `remote` не указана
+            // вовсе, читался бы как набор отсутствующих ключей, а не как
+            // выключенная выгрузка, и каждое обращение к ней требовало бы isset.
+            'remote' => Defaults::remoteTemplate(),
             'files' => ['include' => ['*'], 'exclude' => []],
             'database' => ['include_tables' => ['*'], 'exclude_tables' => []],
             'masking' => ['standard' => false, 'rules' => []],

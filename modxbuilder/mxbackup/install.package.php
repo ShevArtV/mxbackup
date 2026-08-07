@@ -19,7 +19,7 @@ $modx->setLogTarget(XPDO_CLI_MODE ? 'ECHO' : 'HTML');
 $modx->setLogLevel(modX::LOG_LEVEL_INFO);
 $modx->user = $modx->getObject('modUser', 1);
 
-$signature = 'mxbackup-1.3.0-rc';
+$signature = 'mxbackup-1.4.0-rc';
 $scan = $modx->runProcessor('workspace/packages/scanlocal');
 if (!$scan || $scan->isError()) {
     fwrite(STDERR, "Не удалось просканировать core/packages: " . ($scan ? $scan->getMessage() : 'нет ответа') . PHP_EOL);

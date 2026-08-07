@@ -6,6 +6,7 @@ use MxBackup\Bootstrap;
 use MxBackup\Core\Config\ConfigValidator;
 use MxBackup\Core\Storage\LocalStorage;
 use MxBackup\Core\Storage\PathValidator;
+use MxBackup\Core\Storage\Remote\RemoteStorageFactory;
 use MxBackup\Core\Storage\RetentionPolicy;
 use Throwable;
 
@@ -44,6 +45,12 @@ final class Application
             }
             if ($command === 'cleanup') {
                 return $this->cleanup($config);
+            }
+            if ($command === 'remote-list') {
+                return $this->remoteList($config);
+            }
+            if ($command === 'remote-check') {
+                return $this->remoteCheck($config, $options);
             }
             if ($command === 'restore-check' || $command === 'restore') {
                 return $this->restore($command, $config, $options);
@@ -111,10 +118,90 @@ final class Application
         return 0;
     }
 
+    /**
+     * Что лежит в удалённом хранилище профиля.
+     */
+    private function remoteList(array $config)
+    {
+        $storage = RemoteStorageFactory::create($config['profile']);
+        if ($storage === null) {
+            fwrite(STDERR, 'Для профиля ' . $config['profile']['name'] . ' удалённое хранилище не настроено.' . PHP_EOL);
+            return 1;
+        }
+
+        echo json_encode([
+            'storage' => $storage->describe(),
+            'archives' => $storage->listArchives(),
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . PHP_EOL;
+
+        return 0;
+    }
+
+    /**
+     * Доступ к хранилищу — до того, как в него понадобится что-то положить.
+     *
+     * Чтение проверяется всегда, запись — по флагу `--write`: пробный объект
+     * придётся удалять, а права на удаление есть не у всех (и правильно, что не
+     * у всех). Молча оставлять мусор в чужом бакете нельзя.
+     */
+    private function remoteCheck(array $config, array $options)
+    {
+        $storage = RemoteStorageFactory::create($config['profile']);
+        if ($storage === null) {
+            fwrite(STDERR, 'Для профиля ' . $config['profile']['name'] . ' удалённое хранилище не настроено.' . PHP_EOL);
+            return 1;
+        }
+
+        echo 'Хранилище: ' . $storage->describe() . PHP_EOL;
+
+        $archives = $storage->listArchives();
+        echo 'Чтение: доступно, архивов ' . count($archives) . PHP_EOL;
+
+        if (empty($options['write'])) {
+            echo 'Запись не проверялась (добавьте --write).' . PHP_EOL;
+            return 0;
+        }
+
+        $probe = tempnam(sys_get_temp_dir(), 'mxbackup-check');
+        file_put_contents($probe, 'mxbackup access check ' . gmdate('c'));
+        // Имя нарочно не похоже на архив: listArchives его не увидит, и если
+        // удаление не пройдёт, ротация потом не примет его за старую копию.
+        $name = '.mxbackup-access-check';
+
+        try {
+            $storage->upload($probe, $name, ['purpose' => 'access-check']);
+            echo 'Запись: доступна' . PHP_EOL;
+        } catch (Throwable $e) {
+            @unlink($probe);
+            fwrite(STDERR, 'Запись: НЕТ — ' . $e->getMessage() . PHP_EOL);
+            return 1;
+        }
+        @unlink($probe);
+
+        try {
+            $storage->delete($name);
+            echo 'Удаление: доступно (ротация в хранилище будет работать)' . PHP_EOL;
+        } catch (Throwable $e) {
+            fwrite(STDERR, 'Удаление: НЕТ — ' . $e->getMessage() . PHP_EOL);
+            fwrite(STDERR, 'Пробный объект ' . $name . ' остался в хранилище, уберите его вручную.' . PHP_EOL);
+            fwrite(STDERR, 'Ротацию в этом случае должно делать само хранилище (lifecycle-правило).' . PHP_EOL);
+            return 1;
+        }
+
+        return 0;
+    }
+
     private function restore($command, array $config, array $options)
     {
+        // Копия, которую нельзя достать штатной командой, — файл в облаке, а не
+        // резервная копия. Архив скачивается во временный каталог и дальше идёт
+        // обычным путём: preflight, подтверждение, восстановление.
+        if (!empty($options['from-remote'])) {
+            $options['archive'] = $this->pullFromRemote($config, (string) $options['from-remote']);
+        }
+
         if (empty($options['archive'])) {
-            throw new \RuntimeException('Укажите --archive=/absolute/path/backup.zip.');
+            throw new \RuntimeException('Укажите --archive=/absolute/path/backup.zip или --from-remote=<имя архива>.');
         }
         $password = $this->archivePassword($options);
         $runner = Bootstrap::restoreRunner($this->modx);
@@ -157,6 +244,47 @@ final class Application
             'report' => $result->getReport(),
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . PHP_EOL;
         return $result->isSuccess() ? 0 : 1;
+    }
+
+    /**
+     * Скачать архив из удалённого хранилища в каталог хранения.
+     *
+     * Кладётся именно туда, а не во временный каталог: восстановление читает
+     * архив несколько раз (preflight, затем сама распаковка), а /tmp на
+     * хостингах чистится по расписанию и нередко мал для 150 МБ.
+     *
+     * @return string Путь к скачанному файлу.
+     */
+    private function pullFromRemote(array $config, $name)
+    {
+        $storage = RemoteStorageFactory::create($config['profile']);
+        if ($storage === null) {
+            throw new \RuntimeException('Для профиля ' . $config['profile']['name'] . ' удалённое хранилище не настроено.');
+        }
+
+        $root = realpath(Bootstrap::platform($this->modx)->getSiteRoot());
+        $path = isset($config['profile']['storage_path']) && $config['profile']['storage_path'] !== ''
+            ? $config['profile']['storage_path']
+            : $config['storage_path'];
+        if ($path === '') {
+            $path = dirname($root) . DIRECTORY_SEPARATOR . 'backups';
+        }
+        $path = (new PathValidator())->validateCandidate($path, $root, !empty($config['allow_web_storage']));
+        (new LocalStorage())->ensureDirectory($path);
+
+        $target = rtrim($path, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . basename($name);
+        if (is_file($target)) {
+            throw new \RuntimeException(
+                'Файл уже есть локально: ' . $target . '. Используйте --archive=' . $target
+                . ' либо уберите его, если копия повреждена.'
+            );
+        }
+
+        fwrite(STDERR, 'Скачиваю ' . $name . ' из ' . $storage->describe() . '…' . PHP_EOL);
+        $storage->download($name, $target);
+        fwrite(STDERR, 'Готово: ' . $target . PHP_EOL);
+
+        return $target;
     }
 
     private function archivePassword(array $options)
@@ -224,7 +352,7 @@ final class Application
     private function help()
     {
         echo <<<'TXT'
-mxBackup 1.3.0-rc
+mxBackup 1.4.0-rc
 
 Usage:
   mxbackup.php backup --profile=prod [options]
@@ -234,6 +362,8 @@ Usage:
   mxbackup.php cleanup [options]
   mxbackup.php restore-check --archive=/absolute/path/backup.zip [options]
   mxbackup.php restore --archive=/absolute/path/backup.zip --scope=all --confirm=TOKEN [options]
+  mxbackup.php remote-list [options]
+  mxbackup.php remote-check [--write] [options]
 
 Options:
   --profile=NAME
@@ -245,6 +375,8 @@ Options:
   --dry-run
   --verbose
   --archive=/absolute/path/backup.zip
+  --from-remote=mxbackup-prod-20260808-020000.zip
+  --write
   --scope=all|files|database
   --checksum=EXPECTED_SHA256
   --confirm=TOKEN
