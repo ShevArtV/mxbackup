@@ -4,6 +4,46 @@ namespace MxBackup\Core\Masking;
 
 final class StandardRules
 {
+    /**
+     * Имена настроек, за которыми прячется доступ к чужой системе.
+     *
+     * Сравнение идёт по имени ключа, а не по имени колонки: у настроек MODX
+     * значение всегда лежит в `value`, и отличить пароль SMTP от размера
+     * миниатюры можно только по соседней колонке `key`. Список намеренно узкий
+     * — общий `*key*` задел бы безобидные настройки вроде `cache_...`.
+     *
+     * Шаблоны с `!` вычитают настройки, которые лишь названы похоже:
+     * `password_min_length`, `password_generated_length`,
+     * `allow_manager_login_forgot_password`, `*.token_ttl` — это политика и
+     * тайминги, а не доступы, и в копии они должны остаться рабочими.
+     */
+    public static function secretSettingPatterns()
+    {
+        return [
+            '*password*',
+            '*passwd*',
+            '*_pass',
+            '*secret*',
+            '*token*',
+            '*api_key*',
+            '*apikey*',
+            '*private_key*',
+            '*license_key*',
+            '*access_key*',
+            '*auth_key*',
+            '*_credentials',
+
+            '!*_length',
+            '!*_ttl',
+            '!*_lifetime',
+            '!*_expires',
+            '!*_min_*',
+            '!*_max_*',
+            '!allow_*',
+            '!*_enabled',
+        ];
+    }
+
     public static function requiredColumns()
     {
         return [
@@ -92,6 +132,28 @@ final class StandardRules
         }
         foreach (['password', 'cachepwd', 'salt', 'token', 'secret', 'api_key', 'apikey', 'authorization'] as $column) {
             $rules[] = new Rule('*', $column, 'hide', null, -1000);
+        }
+
+        /*
+         * Настройки MODX: ключи платёжных шлюзов, пароль SMTP, токены рассылок и
+         * аналитики лежат в колонке `value` вперемешку с безобидными настройками.
+         * Правило по колонке их не различает, поэтому здесь работает условие по
+         * соседней колонке `key` — стирается только значение секретной настройки,
+         * остальная конфигурация в копии остаётся, и сайт из неё поднимается.
+         */
+        // Те же настройки, переопределённые в контексте или у пользователя,
+        // лежат в отдельных таблицах с той же парой колонок — иначе секрет
+        // уехал бы в копии через контекстное переопределение.
+        foreach (['*_system_settings', '*_context_setting', '*_user_setting'] as $table) {
+            $rules[] = new Rule(
+                $table,
+                'value',
+                'hide',
+                null,
+                -1000,
+                null,
+                ['key' => self::secretSettingPatterns()]
+            );
         }
 
         return $rules;

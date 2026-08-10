@@ -36,6 +36,12 @@ final class Masker
                 if (!$rule->matches($table, $column) || $rule->getAction() === 'truncate') {
                     continue;
                 }
+                // Условные правила смотрят на соседние колонки этой же строки:
+                // так вычищается секрет в `system_settings.value`, у которого
+                // имя лежит в колонке `key`, а обычные настройки остаются.
+                if ($rule->hasCondition() && !$rule->appliesToRow($row)) {
+                    continue;
+                }
                 $value = $this->transform($rule, $column, $value, $table . '|' . $rowSeed . '|' . $column, $columnMeta);
             }
             $row[$column] = $value;
@@ -80,14 +86,24 @@ final class Masker
             return ['truncated' => true, 'columns' => []];
         }
         $columns = [];
+        // Колонки, которые правило трогает не в каждой строке, а по условию.
+        // Отдельным списком, чтобы dry-run не читался как «здесь сотрут всё»:
+        // у `system_settings.value` действие `hide`, но достанется оно только
+        // строкам, чей `key` похож на секрет.
+        $conditional = [];
         foreach (array_keys($columnMeta) as $column) {
             foreach ($this->rules as $rule) {
                 if ($rule->getAction() !== 'truncate' && $rule->matches($table, $column)) {
                     $columns[$column] = $rule->getAction();
+                    if ($rule->hasCondition()) {
+                        $conditional[$column] = $rule->getWhen();
+                    } else {
+                        unset($conditional[$column]);
+                    }
                 }
             }
         }
-        return ['truncated' => false, 'columns' => $columns];
+        return ['truncated' => false, 'columns' => $columns, 'conditional_columns' => $conditional];
     }
 
     private function transform(Rule $rule, $column, $value, $seed, array $columnMeta)

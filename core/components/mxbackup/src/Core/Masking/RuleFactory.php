@@ -45,13 +45,21 @@ final class RuleFactory
             } else {
                 continue;
             }
+            // Условие по соседним колонкам строки: `'when' => ['key' => ['*secret*']]`.
+            // Правилу уровня таблицы условие не нужно — она очищается целиком,
+            // а не построчно, поэтому там оно игнорируется.
+            $when = [];
+            if ($targetType !== 'table' && isset($row['when']) && is_array($row['when'])) {
+                $when = $row['when'];
+            }
             $rules[] = new Rule(
                 $table,
                 $column,
                 isset($row['action']) ? (string)$row['action'] : 'mask',
                 isset($row['value']) ? $row['value'] : null,
                 isset($row['priority']) ? (int)$row['priority'] : 0,
-                $jsonPath
+                $jsonPath,
+                $when
             );
         }
         return $rules;
