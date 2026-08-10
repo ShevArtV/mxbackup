@@ -62,6 +62,32 @@ final class MaskerTest extends TestCase
     }
 
     /**
+     * Имена таблиц настроек в MODX разнобойные: `system_settings` и
+     * `user_settings` во множественном числе, `context_setting` в
+     * единственном. Сравнение точное (`fnmatch`), поэтому опечатка в одну
+     * букву означает, что таблица не обрабатывалась вовсе.
+     *
+     * @dataProvider settingsTables
+     */
+    public function testEverySettingsTableIsCovered($table)
+    {
+        $masker = new Masker(StandardRules::rules(), null, StandardRules::requiredColumns());
+        $meta = ['key' => ['Null' => 'NO'], 'value' => ['Null' => 'NO']];
+        $row = $masker->maskRow($table, ['key' => 'stripe_secret_key', 'value' => 'sk_live_1'], $meta);
+        self::assertSame('', $row['value'], $table . ' — переопределение настройки, секрет уедет в копию');
+    }
+
+    public function settingsTables()
+    {
+        return [
+            ['modx_system_settings'],
+            ['modx_context_setting'],
+            ['modx_user_settings'],
+            ['modx_user_group_settings'],
+        ];
+    }
+
+    /**
      * @dataProvider settingsNamedLikeSecretsButHarmless
      */
     public function testSettingsNamedLikeSecretsKeepTheirValues($key, $value)
