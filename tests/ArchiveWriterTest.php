@@ -6,6 +6,7 @@ use MxBackup\Core\Archive\ArchiveWriter;
 use PHPUnit\Framework\TestCase;
 use ZipArchive;
 use PharData;
+use RuntimeException;
 
 final class ArchiveWriterTest extends TestCase
 {
@@ -49,6 +50,53 @@ final class ArchiveWriterTest extends TestCase
         self::assertSame(9, $tar['database.sql']->getSize());
         self::assertSame(2, $tar['mxbackup-manifest.json']->getSize());
         unset($tar);
+        foreach (glob($dir . '/*') as $file) @unlink($file);
+        @rmdir($dir);
+    }
+
+    public function testTarGzSupportsUstarLongPathsWithoutIntermediateTar()
+    {
+        if (!class_exists('PharData')) self::markTestSkipped('PharData missing');
+        $dir = sys_get_temp_dir() . '/mxb-pax-' . bin2hex(random_bytes(5));
+        mkdir($dir);
+        file_put_contents($dir . '/file.txt', 'long path');
+        file_put_contents($dir . '/database.sql', 'SELECT 1;');
+        file_put_contents($dir . '/manifest.json', '{}');
+        $relative = str_repeat('directory-', 12) . '/file.txt';
+        $archive = $dir . '/backup.tar.gz';
+        (new ArchiveWriter())->write($archive, 'tar.gz', [[
+            'absolute' => $dir . '/file.txt', 'relative' => $relative, 'size' => 9,
+        ]], $dir . '/database.sql', $dir . '/manifest.json');
+
+        $tar = new PharData($archive);
+        self::assertTrue(isset($tar['site/' . $relative]));
+        self::assertSame('long path', $tar['site/' . $relative]->getContent());
+        self::assertFileDoesNotExist($dir . '/backup.tar');
+        unset($tar);
+        foreach (glob($dir . '/*') as $file) @unlink($file);
+        @rmdir($dir);
+    }
+
+    public function testTarGzCancellationRemovesPartialArchive()
+    {
+        $dir = sys_get_temp_dir() . '/mxb-cancel-tar-' . bin2hex(random_bytes(5));
+        mkdir($dir);
+        file_put_contents($dir . '/file.txt', str_repeat('payload', 1000));
+        file_put_contents($dir . '/database.sql', 'SELECT 1;');
+        file_put_contents($dir . '/manifest.json', '{}');
+        $archive = $dir . '/backup.tar.gz';
+        $calls = 0;
+        try {
+            (new ArchiveWriter())->write($archive, 'tar.gz', [[
+                'absolute' => $dir . '/file.txt', 'relative' => 'file.txt', 'size' => 7000,
+            ]], $dir . '/database.sql', $dir . '/manifest.json', null, static function () use (&$calls) {
+                if (++$calls >= 2) throw new RuntimeException('cancel test');
+            });
+            self::fail('Cancellation exception expected');
+        } catch (RuntimeException $e) {
+            self::assertSame('cancel test', $e->getMessage());
+        }
+        self::assertFileDoesNotExist($archive);
         foreach (glob($dir . '/*') as $file) @unlink($file);
         @rmdir($dir);
     }

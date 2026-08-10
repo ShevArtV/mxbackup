@@ -29,7 +29,7 @@ interface RemoteStorageInterface
      * @param array<string, string> $metadata Метки объекта: сумма, профиль, версия.
      * @return string Полный адрес объекта в хранилище.
      */
-    public function upload($path, $name, array $metadata = []);
+    public function upload($path, $name, array $metadata = [], callable $checkpoint = null);
 
     /**
      * Скачать архив в локальный файл.

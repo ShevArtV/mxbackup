@@ -4,6 +4,7 @@ class mxBackupRunCreateProcessor extends modProcessor
     public function checkPermissions(){return $this->modx->hasPermission('mxbackup_run');}
     public function process(){
         set_time_limit(0);
+        if (session_status() === PHP_SESSION_ACTIVE) session_write_close();
         $corePath=$this->modx->getOption('mxbackup.core_path',null,MODX_CORE_PATH.'components/mxbackup/');require_once $corePath.'autoload.php';
         try{
             $config=\MxBackup\Bootstrap::config($this->modx,['profile'=>(string)$this->getProperty('profile','prod')]);
@@ -11,7 +12,8 @@ class mxBackupRunCreateProcessor extends modProcessor
             $report=$result->getReport();
             $message=$result->getArchivePath()?('Архив: '.$result->getArchivePath()):'Dry-run завершён.';
             return $this->success($message,['archive'=>$result->getArchivePath(),'report'=>$report]);
-        }catch(Throwable $e){return $this->failure($e->getMessage());}
+        }catch(\MxBackup\Core\Control\BackupCancelledException $e){return $this->success($e->getMessage(),['cancelled'=>true]);}
+        catch(Throwable $e){return $this->failure($e->getMessage());}
     }
 }
 return 'mxBackupRunCreateProcessor';

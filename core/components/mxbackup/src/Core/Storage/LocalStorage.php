@@ -81,6 +81,9 @@ final class LocalStorage
             } elseif (is_file($path) && preg_match('/^\..+\.part\.[a-z0-9.]+$/i', $entry)) {
                 @unlink($path);
                 $removed[] = $entry;
+            } elseif (is_file($path) && preg_match('/^\.mxbackup-cancel-[0-9]+$/', $entry)) {
+                @unlink($path);
+                $removed[] = $entry;
             }
         }
 

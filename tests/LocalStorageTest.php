@@ -30,12 +30,14 @@ final class LocalStorageTest extends TestCase
         file_put_contents($workspace . '/database.sql', 'INSERT INTO users …');
         file_put_contents($this->root . '/.mxbackup-prod-20260806-010203.part.tar', 'partial');
         file_put_contents($this->root . '/.mxbackup-dev-20260806-010203.part.tar.gz', 'partial');
+        file_put_contents($this->root . '/.mxbackup-cancel-42', 'stale');
 
         $removed = (new LocalStorage())->purgeOrphans($this->root);
 
         sort($removed);
         self::assertSame([
             '.mxbackup-0123456789abcdef',
+            '.mxbackup-cancel-42',
             '.mxbackup-dev-20260806-010203.part.tar.gz',
             '.mxbackup-prod-20260806-010203.part.tar',
         ], $removed);

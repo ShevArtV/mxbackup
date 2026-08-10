@@ -74,7 +74,7 @@ class S3Client
      *
      * @param array<string, string> $metadata Пользовательские метаданные (x-amz-meta-*).
      */
-    public function putFile($key, $path, array $metadata = [], $storageClass = '')
+    public function putFile($key, $path, array $metadata = [], $storageClass = '', callable $checkpoint = null)
     {
         if (!is_readable($path)) {
             throw new RuntimeException('Файл недоступен для чтения: ' . $path);
@@ -91,9 +91,11 @@ class S3Client
         // Сумма содержимого нужна подписи. Она уже посчитана прогоном (архив
         // проверяется контрольной суммой), но клиент обязан работать и сам по
         // себе — повторный проход по файлу дешевле неверной подписи.
-        $payloadHash = hash_file('sha256', $path);
+        $payloadHash = isset($metadata['sha256']) && preg_match('/^[a-f0-9]{64}$/i', (string) $metadata['sha256'])
+            ? strtolower((string) $metadata['sha256'])
+            : $this->hashFile($path, $checkpoint);
 
-        $this->request('PUT', $key, [], $headers, $payloadHash, $path);
+        $this->request('PUT', $key, [], $headers, $payloadHash, $path, null, $checkpoint);
     }
 
     /**
@@ -187,7 +189,7 @@ class S3Client
      * @param string|null           $uploadFile Файл-источник для PUT.
      * @param resource|null         $sink       Куда писать тело ответа.
      */
-    private function request($method, $key, array $query, array $headers, $payloadHash, $uploadFile = null, $sink = null)
+    private function request($method, $key, array $query, array $headers, $payloadHash, $uploadFile = null, $sink = null, callable $checkpoint = null)
     {
         $credentials = $this->credentials->resolve();
         $timestamp = gmdate('Ymd\THis\Z');
@@ -250,7 +252,7 @@ class S3Client
             $url .= '?' . $this->canonicalQuery($query);
         }
 
-        return $this->send($method, $url, $requestHeaders, $uploadFile, $sink);
+        return $this->send($method, $url, $requestHeaders, $uploadFile, $sink, $checkpoint);
     }
 
     /**
@@ -263,7 +265,7 @@ class S3Client
      * @param string|null        $uploadFile
      * @param resource|null      $sink
      */
-    protected function send($method, $url, array $headers, $uploadFile, $sink)
+    protected function send($method, $url, array $headers, $uploadFile, $sink, callable $checkpoint = null)
     {
         if (!function_exists('curl_init')) {
             throw new RuntimeException('Для работы с S3 нужен модуль curl.');
@@ -275,6 +277,15 @@ class S3Client
         curl_setopt($curl, CURLOPT_CONNECTTIMEOUT, 15);
         curl_setopt($curl, CURLOPT_TIMEOUT, $this->timeout);
         curl_setopt($curl, CURLOPT_FAILONERROR, false);
+        if ($checkpoint) {
+            curl_setopt($curl, CURLOPT_NOPROGRESS, false);
+            $progress = static function () use ($checkpoint) { $checkpoint(); return 0; };
+            if (defined('CURLOPT_XFERINFOFUNCTION')) {
+                curl_setopt($curl, CURLOPT_XFERINFOFUNCTION, $progress);
+            } else {
+                curl_setopt($curl, CURLOPT_PROGRESSFUNCTION, $progress);
+            }
+        }
 
         $handle = null;
         if ($uploadFile !== null) {
@@ -299,12 +310,15 @@ class S3Client
             curl_setopt($curl, CURLOPT_NOBODY, true);
         }
 
-        $body = curl_exec($curl);
-        $status = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
-        $error = curl_error($curl);
-        curl_close($curl);
-        if ($handle !== null) {
-            fclose($handle);
+        try {
+            $body = curl_exec($curl);
+            $status = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
+            $error = curl_error($curl);
+        } finally {
+            curl_close($curl);
+            if ($handle !== null) {
+                fclose($handle);
+            }
         }
 
         if ($body === false && $error !== '') {
@@ -316,6 +330,30 @@ class S3Client
         }
 
         return is_string($body) ? $body : '';
+    }
+
+    private function hashFile($path, callable $checkpoint = null)
+    {
+        $handle = fopen($path, 'rb');
+        if ($handle === false) {
+            throw new RuntimeException('Файл недоступен для SHA-256: ' . $path);
+        }
+        $context = hash_init('sha256');
+        try {
+            while (!feof($handle)) {
+                $chunk = fread($handle, 1024 * 1024);
+                if ($chunk === false) {
+                    throw new RuntimeException('Ошибка чтения файла для SHA-256: ' . $path);
+                }
+                if ($chunk !== '') {
+                    hash_update($context, $chunk);
+                    if ($checkpoint) $checkpoint();
+                }
+            }
+        } finally {
+            fclose($handle);
+        }
+        return hash_final($context);
     }
 
     /**

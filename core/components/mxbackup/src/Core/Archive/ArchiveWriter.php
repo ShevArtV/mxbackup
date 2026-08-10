@@ -2,28 +2,26 @@
 
 namespace MxBackup\Core\Archive;
 
-use Phar;
-use PharData;
 use RuntimeException;
 use ZipArchive;
 
 final class ArchiveWriter
 {
-    public function write($path, $format, iterable $files, $sqlPath, $manifestPath, $password = null)
+    public function write($path, $format, iterable $files, $sqlPath, $manifestPath, $password = null, callable $checkpoint = null)
     {
         if ($format === 'zip') {
-            return $this->writeZip($path, $files, $sqlPath, $manifestPath, $password);
+            return $this->writeZip($path, $files, $sqlPath, $manifestPath, $password, $checkpoint);
         }
         if ($format === 'tar.gz') {
             if ($password !== null && $password !== '') {
                 throw new RuntimeException('Шифрование доступно только для ZIP.');
             }
-            return $this->writeTarGz($path, $files, $sqlPath, $manifestPath);
+            return (new TarGzStreamWriter())->write($path, $files, $sqlPath, $manifestPath, $checkpoint);
         }
         throw new RuntimeException('Неподдерживаемый формат архива: ' . $format);
     }
 
-    private function writeZip($path, iterable $files, $sqlPath, $manifestPath, $password)
+    private function writeZip($path, iterable $files, $sqlPath, $manifestPath, $password, callable $checkpoint = null)
     {
         if (!class_exists('ZipArchive')) {
             throw new RuntimeException('Для ZIP требуется расширение ext-zip.');
@@ -33,20 +31,25 @@ final class ArchiveWriter
             throw new RuntimeException('Текущая сборка ext-zip не поддерживает AES-256.');
         }
         $zip = new ZipArchive();
+        $closed = false;
         if ($zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
             throw new RuntimeException('Не удалось создать ZIP: ' . $path);
         }
         try {
             foreach ($files as $file) {
+                if ($checkpoint) $checkpoint();
                 $this->addZipFile($zip, $file['absolute'], 'site/' . $file['relative'], $password);
             }
+            if ($checkpoint) $checkpoint();
             $this->addZipFile($zip, $sqlPath, 'database.sql', $password);
             $this->addZipFile($zip, $manifestPath, 'mxbackup-manifest.json', $password);
             if (!$zip->close()) {
                 throw new RuntimeException('Не удалось завершить ZIP: ' . $path);
             }
+            $closed = true;
+            if ($checkpoint) $checkpoint();
         } catch (\Throwable $e) {
-            $zip->close();
+            if (!$closed) $zip->close();
             @unlink($path);
             throw $e;
         }
@@ -89,33 +92,4 @@ final class ArchiveWriter
         }
     }
 
-    private function writeTarGz($path, iterable $files, $sqlPath, $manifestPath)
-    {
-        if (!class_exists('PharData')) {
-            throw new RuntimeException('Для tar.gz требуется расширение Phar.');
-        }
-        $tarPath = preg_replace('/\.gz$/', '', $path);
-        @unlink($tarPath);
-        @unlink($path);
-        try {
-            $tar = new PharData($tarPath);
-            foreach ($files as $file) {
-                $tar->addFile($file['absolute'], 'site/' . $file['relative']);
-            }
-            $tar->addFile($sqlPath, 'database.sql');
-            $tar->addFile($manifestPath, 'mxbackup-manifest.json');
-            $compressed = $tar->compress(Phar::GZ);
-            unset($compressed);
-            unset($tar);
-            @unlink($tarPath);
-        } catch (\Exception $e) {
-            @unlink($tarPath);
-            @unlink($path);
-            throw new RuntimeException('Не удалось создать tar.gz: ' . $e->getMessage(), 0, $e);
-        }
-        if (!is_file($path)) {
-            throw new RuntimeException('Phar не создал tar.gz: ' . $path);
-        }
-        return $path;
-    }
 }

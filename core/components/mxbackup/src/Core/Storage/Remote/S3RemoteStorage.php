@@ -35,10 +35,10 @@ final class S3RemoteStorage implements RemoteStorageInterface
         return 's3://' . $this->bucket . '/' . $this->prefix;
     }
 
-    public function upload($path, $name, array $metadata = [])
+    public function upload($path, $name, array $metadata = [], callable $checkpoint = null)
     {
         $key = $this->prefix . $name;
-        $this->client->putFile($key, $path, $metadata, $this->storageClass);
+        $this->client->putFile($key, $path, $metadata, $this->storageClass, $checkpoint);
 
         return 's3://' . $this->bucket . '/' . $key;
     }

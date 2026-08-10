@@ -73,6 +73,13 @@ Ext.extend(MxBackup.grid.Runs, MODx.grid.Grid, {
             scope: this
         }];
         var item = this.store.getAt(row);
+        if (MxBackup.config.canRun && item && item.get('status') === 'running') {
+            menu.push({
+                text: _('mxbackup_stop_backup'),
+                handler: function () { MxBackup.cancelRun(item.get('id')); },
+                scope: this
+            });
+        }
         if (MxBackup.config.canRestore && item && item.get('run_type') === 'backup'
             && item.get('archive_path') && (item.get('status') === 'success' || item.get('status') === 'warning')) {
             menu.push({

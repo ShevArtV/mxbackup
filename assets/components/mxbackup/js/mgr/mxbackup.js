@@ -90,13 +90,31 @@ MxBackup.validateConfig = function (profile) {
 };
 MxBackup.run = function (profile, dryRun) {
     if (!MxBackup.config.canRun) return;
-    Ext.Msg.confirm(_('mxbackup_run'), dryRun ? _('mxbackup_confirm_dryrun') : _('mxbackup_confirm_run'), function (answer) {
+    MxBackup.request('mgr/run/estimate', {profile: profile}, function (estimateResponse) {
+        var estimate = estimateResponse.object || {}, warnings = estimate.warnings || [];
+        var message = (dryRun ? _('mxbackup_confirm_dryrun') : _('mxbackup_confirm_run'))
+            + '<br><br><b>' + _('mxbackup_report_files') + ':</b> ' + MxBackup.escape(estimate.files || 0)
+            + '<br><b>' + _('mxbackup_source_size') + ':</b> ' + MxBackup.escape(MxBackup.formatBytes(estimate.file_bytes || 0))
+            + '<br><b>' + _('mxbackup_free_space') + ':</b> ' + MxBackup.escape(MxBackup.formatBytes(estimate.free_bytes || 0));
+        if (warnings.length) message += '<br><br><span class="mxbackup-status-warning">' + MxBackup.escape(warnings.join(' ')) + '</span>';
+        Ext.Msg.confirm(_('mxbackup_run'), message, function (answer) {
+            if (answer !== 'yes') return;
+            MODx.msg.status({title: _('mxbackup_run'), message: _('mxbackup_running'), dontHide: true});
+            MxBackup.request('mgr/run/create', {profile: profile, dry_run: dryRun ? 1 : 0}, function (response) {
+                MODx.msg.hide();
+                var report = response.object && response.object.report ? response.object.report : null;
+                MODx.msg.alert(_('mxbackup_run'), report ? MxBackup.reportHtml(report) : (response.message || _('mxbackup_finished')));
+                var grid = Ext.getCmp('mxbackup-grid-runs');
+                if (grid) grid.refresh();
+            });
+        });
+    });
+};
+MxBackup.cancelRun = function (id) {
+    Ext.Msg.confirm(_('mxbackup_stop_backup'), _('mxbackup_confirm_stop'), function (answer) {
         if (answer !== 'yes') return;
-        MODx.msg.status({title: _('mxbackup_run'), message: _('mxbackup_running'), dontHide: true});
-        MxBackup.request('mgr/run/create', {profile: profile, dry_run: dryRun ? 1 : 0}, function (response) {
-            MODx.msg.hide();
-            var report = response.object && response.object.report ? response.object.report : null;
-            MODx.msg.alert(_('mxbackup_run'), report ? MxBackup.reportHtml(report) : (response.message || _('mxbackup_finished')));
+        MxBackup.request('mgr/run/cancel', {id: id || 0}, function (response) {
+            MODx.msg.status({title: _('mxbackup_stop_backup'), message: response.message || _('mxbackup_stop_requested')});
             var grid = Ext.getCmp('mxbackup-grid-runs');
             if (grid) grid.refresh();
         });

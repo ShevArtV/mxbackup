@@ -165,7 +165,7 @@ final class RecordingS3Client extends S3Client
         return '';
     }
 
-    protected function send($method, $url, array $headers, $uploadFile, $sink)
+    protected function send($method, $url, array $headers, $uploadFile, $sink, callable $checkpoint = null)
     {
         $this->lastUrl = $url;
         $this->lastHeaders = $headers;

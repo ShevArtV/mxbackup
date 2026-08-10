@@ -17,7 +17,7 @@ final class DatabaseDumper
         $this->masker = $masker;
     }
 
-    public function dump($path, array $tables, $batchSize = 500)
+    public function dump($path, array $tables, $batchSize = 500, callable $checkpoint = null)
     {
         $handle = fopen($path, 'wb');
         if (!$handle) {
@@ -30,6 +30,7 @@ final class DatabaseDumper
             $this->database->beginConsistentSnapshot();
             $snapshot = true;
             foreach ($tables as $table) {
+                if ($checkpoint) $checkpoint();
                 $meta = $this->database->describeTable($table);
                 if ($this->masker) {
                     $this->masker->validateTable($table, $meta);
@@ -45,6 +46,7 @@ final class DatabaseDumper
                 $truncated = $this->masker && $this->masker->shouldTruncate($table);
                 if (!$truncated) {
                     foreach ($this->database->iterateRows($table, $batchSize) as $row) {
+                        if ($checkpoint) $checkpoint();
                         if ($this->masker) {
                             $row = $this->masker->maskRow($table, $row, $meta);
                         }

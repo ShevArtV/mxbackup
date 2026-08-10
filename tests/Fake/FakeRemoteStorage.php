@@ -31,8 +31,9 @@ final class FakeRemoteStorage implements RemoteStorageInterface
         return 'fake://storage/';
     }
 
-    public function upload($path, $name, array $metadata = [])
+    public function upload($path, $name, array $metadata = [], callable $checkpoint = null)
     {
+        if ($checkpoint) $checkpoint();
         if ($this->failUpload) {
             throw new RuntimeException('хранилище недоступно');
         }

@@ -3,6 +3,7 @@
 namespace MxBackup\Tests;
 
 use MxBackup\Core\BackupRunner;
+use MxBackup\Core\Control\BackupCancelledException;
 use MxBackup\Core\Config\ConfigResolver;
 use MxBackup\Core\Config\Defaults;
 use MxBackup\Tests\Fake\FakeDatabase;
@@ -116,5 +117,32 @@ final class BackupRunnerTest extends TestCase
         self::assertSame('error', $platform->logs[0]['level']);
         self::assertSame(0, $platform->logs[0]['context']['run_id']);
         self::assertSame([], $platform->runs->records);
+    }
+
+    public function testCancellationFinalizesHistoryAndCleansArtifacts()
+    {
+        $base = sys_get_temp_dir() . '/mxb-run-cancel-' . bin2hex(random_bytes(5));
+        $site = $base . '/site'; $storage = $base . '/backups';
+        mkdir($site, 0700, true); mkdir($storage, 0700, true);
+        file_put_contents($site . '/index.php', '<?php echo "ok";');
+        $platform = new FakePlatform($site, new FakeDatabase(['modx_test' => [['id' => 1]]]));
+        $platform->runs->cancelRequested = true;
+        $config = (new ConfigResolver())->resolve(Defaults::values(), [], [], [
+            'storage_path' => $storage, 'format' => 'tar.gz', 'profile' => 'prod',
+        ], []);
+
+        try {
+            (new BackupRunner($platform))->run($config, false);
+            self::fail('Cancellation exception expected');
+        } catch (BackupCancelledException $e) {
+            self::assertSame('Резервное копирование остановлено пользователем.', $e->getMessage());
+        }
+        self::assertSame('cancelled', $platform->runs->records[1]['status']);
+        self::assertNotEmpty($platform->runs->records[1]['completedon']);
+        self::assertSame([], glob($storage . '/.mxbackup-*') ?: []);
+        self::assertSame([], glob($storage . '/*.tar.gz') ?: []);
+
+        @unlink($storage . '/.mxbackup.lock');
+        @unlink($site . '/index.php'); @rmdir($storage); @rmdir($site); @rmdir($base);
     }
 }

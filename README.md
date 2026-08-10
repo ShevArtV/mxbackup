@@ -14,7 +14,7 @@
   данные MODX и miniShop2 заменяются стабильными тестовыми значениями.
 
 Требования: MODX 2.6–2.8, PHP 7.4+, MySQL/MariaDB и PDO MySQL. Для ZIP нужен
-`ext-zip`, для `tar.gz` — `Phar` и `zlib`. Для AES-256 нужен `ext-zip`,
+`ext-zip`, для создания `tar.gz` — `zlib`, для восстановления — `Phar`. Для AES-256 нужен `ext-zip`,
 собранный с libzip 1.2 или новее.
 
 ## Установка
@@ -48,6 +48,10 @@
   предлагает восстановление после обязательного preflight и ввода кода
   подтверждения. Доступ управляется отдельным правом `mxbackup_restore`.
 
+Перед запуском manager подсчитывает количество и объём выбранных файлов,
+показывает свободное место и предупреждает о больших копиях. Выполняющийся
+backup можно безопасно остановить кнопкой в панели или из его контекстного меню.
+
 В профиле `dev` стандартное обезличивание обязательно и не может быть отключено.
 Пользовательские правила имеют приоритет над встроенными.
 
@@ -56,7 +60,9 @@
 ```bash
 php core/components/mxbackup/cli/mxbackup.php validate-config
 php core/components/mxbackup/cli/mxbackup.php dry-run --profile=dev
+php core/components/mxbackup/cli/mxbackup.php estimate --profile=prod
 php core/components/mxbackup/cli/mxbackup.php backup --profile=prod
+php core/components/mxbackup/cli/mxbackup.php cancel
 php core/components/mxbackup/cli/mxbackup.php cleanup
 php core/components/mxbackup/cli/mxbackup.php restore-check --archive=/absolute/path/backup.zip
 php core/components/mxbackup/cli/mxbackup.php restore --archive=/absolute/path/backup.zip --scope=all --confirm=TOKEN
@@ -68,7 +74,8 @@ php core/components/mxbackup/cli/mxbackup.php restore --archive=/absolute/path/b
 15 3 * * * /usr/bin/php /path/to/site/core/components/mxbackup/cli/mxbackup.php backup --profile=prod --no-mail
 ```
 
-Доступные параметры: `--profile`, `--storage-path`, `--config`,
+Команда `cancel` останавливает текущий запуск; конкретный запуск можно указать
+через `--id=RUN_ID`. Доступные параметры: `--profile`, `--storage-path`, `--config`,
 `--format=tar.gz|zip`, `--mail-to`, `--no-mail`, `--verbose`. Для восстановления:
 `--archive`, `--scope=all|files|database`, `--checksum`, `--confirm` и
 `--password-file`. Пароль AES-256 также можно передать через переменную окружения
@@ -136,13 +143,14 @@ mxBackup: checksum защищает от случайной порчи, но н�
 - include/exclude-правила для файлов и таблиц;
 - стандартные и пользовательские правила маскирования, включая JSON path;
 - блокировка параллельных запусков, атомарная публикация архива и checksum;
+- потоковая однопроходная сборка `tar.gz` и безопасная отмена запуска;
 - retention по возрасту и количеству, email-отчёт, история запусков в CMP;
 - consistent snapshot для транзакционных таблиц и предупреждения для остальных.
 - preflight и восстановление файлов/БД из ZIP, `tar.gz` и AES-256 ZIP;
 - автоматический страховочный backup и отдельное право на восстановление.
 
-В текущей версии нет S3/FTP/WebDAV, очереди и автоматического управления внешним
-maintenance-режимом.
+В текущей версии нет FTP/WebDAV, очереди и автоматического управления внешним
+maintenance-режимом. S3 и совместимые хранилища настраиваются в профиле.
 Большие копии запускайте через CLI/cron: веб-запуск зависит от таймаутов PHP и
 reverse proxy.
 

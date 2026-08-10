@@ -1,4 +1,4 @@
-mxBackup 1.4.1-rc
+mxBackup 1.5.0-rc
 ===================
 
 mxBackup создаёт два вида резервных копий сайта MODX:
@@ -15,7 +15,9 @@ mxBackup создаёт два вида резервных копий сайта
 
     php core/components/mxbackup/cli/mxbackup.php validate-config
     php core/components/mxbackup/cli/mxbackup.php dry-run --profile=dev
+    php core/components/mxbackup/cli/mxbackup.php estimate --profile=prod
     php core/components/mxbackup/cli/mxbackup.php backup --profile=prod
+    php core/components/mxbackup/cli/mxbackup.php cancel
     php core/components/mxbackup/cli/mxbackup.php restore-check --archive=/absolute/path/backup.zip
     php core/components/mxbackup/cli/mxbackup.php restore --archive=/absolute/path/backup.zip --scope=all --confirm=TOKEN
 
@@ -32,6 +34,8 @@ mxbackup.config_dir, системные настройки MODX, встроен�
 
 * backup — создать архив;
 * dry-run — показать состав без чтения содержимого и записи архива;
+* estimate — посчитать файлы, их размер и свободное место;
+* cancel — безопасно остановить текущий backup (либо --id=RUN_ID);
 * validate-config — проверить конфигурацию и окружение;
 * list-profiles — вывести доступные профили;
 * cleanup — применить retention.
@@ -75,6 +79,10 @@ production-backup; без него восстановление не начин�
 
 Безопасность
 ------------
+
+tar.gz собирается потоково без промежуточного несжатого TAR. Перед запуском из
+manager показываются число и размер файлов и свободное место. Активный запуск
+можно остановить из manager или командой cancel; временные файлы удаляются.
 
 Email выключен по умолчанию. Production-архив содержит конфигурацию сайта и
 может содержать секреты — храните его только вне webroot. Режим dev

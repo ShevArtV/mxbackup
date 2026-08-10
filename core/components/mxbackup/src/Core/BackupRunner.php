@@ -4,6 +4,8 @@ namespace MxBackup\Core;
 
 use MxBackup\Core\Archive\ArchiveWriter;
 use MxBackup\Core\Config\ConfigValidator;
+use MxBackup\Core\Control\BackupCancelledException;
+use MxBackup\Core\Control\CancellationToken;
 use MxBackup\Core\Contract\PlatformInterface;
 use MxBackup\Core\Database\DatabaseDumper;
 use MxBackup\Core\Database\TableSelector;
@@ -28,7 +30,7 @@ class BackupRunner
     // Единственная строка, которой ядро линии MODX 2 отличается от линии MODX 3:
     // версия попадает в manifest архива, а нумерация у линий разная
     // (мажор означает платформу).
-    const VERSION = '1.4.1-rc';
+    const VERSION = '1.5.0-rc';
 
     private $platform;
     private $storage;
@@ -54,6 +56,8 @@ class BackupRunner
         $workspace = null;
         $archivePath = null;
         $temporary = null;
+        $cancellation = null;
+        $cancellationMarker = null;
 
         try {
             $errors = (new ConfigValidator())->validate($config);
@@ -101,6 +105,8 @@ class BackupRunner
             if (!$runId) {
                 throw new RuntimeException('Не удалось создать запись в истории backup.');
             }
+            $cancellationMarker = rtrim($storagePath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . '.mxbackup-cancel-' . $runId;
+            $cancellation = new CancellationToken($this->platform->runs(), $runId, 0.2, $cancellationMarker);
             $this->platform->log('info', 'Запуск резервного копирования.', [
                 'run_id' => $runId,
                 'profile' => $profileName,
@@ -117,6 +123,7 @@ class BackupRunner
             $files = [];
             $fileBytes = 0;
             foreach ($collector->collect($siteRoot, $matcher) as $file) {
+                $cancellation->checkpoint();
                 $files[] = $file;
                 $fileBytes += $file['size'];
             }
@@ -133,6 +140,7 @@ class BackupRunner
                 isset($databaseConfig['include_tables']) ? $databaseConfig['include_tables'] : ['*'],
                 isset($databaseConfig['exclude_tables']) ? $databaseConfig['exclude_tables'] : []
             );
+            $cancellation->checkpoint(true);
             $report->set('tables', count($tables));
             $report->set('table_names', $tables);
             $report->set('dry_run', (bool)$dryRun);
@@ -150,6 +158,7 @@ class BackupRunner
             $truncatedTables = [];
             if ($masker) {
                 foreach ($tables as $table) {
+                    $cancellation->checkpoint();
                     $plan = $masker->planTable($table, $this->platform->database()->describeTable($table));
                     if ($plan['truncated']) {
                         $truncatedTables[] = $table;
@@ -173,6 +182,7 @@ class BackupRunner
             }
 
             if ($dryRun) {
+                $cancellation->checkpoint(true);
                 $report->complete($this->platform->now());
                 if (!$this->platform->runs()->finish($runId, [
                     'status' => $report->toArray()['status'],
@@ -193,7 +203,8 @@ class BackupRunner
             $databaseReport = (new DatabaseDumper($this->platform->database(), $masker))->dump(
                 $sqlPath,
                 $tables,
-                isset($config['batch_size']) ? (int)$config['batch_size'] : 500
+                isset($config['batch_size']) ? (int)$config['batch_size'] : 500,
+                [$cancellation, 'checkpoint']
             );
             foreach ($databaseReport['warnings'] as $warning) {
                 $report->warning($warning);
@@ -211,6 +222,7 @@ class BackupRunner
             ], $report);
             $manifestPath = $workspace . DIRECTORY_SEPARATOR . 'mxbackup-manifest.json';
             file_put_contents($manifestPath, json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+            $cancellation->checkpoint(true);
 
             $format = $profile['format'];
             $stamp = gmdate('Ymd-His', $started);
@@ -227,11 +239,12 @@ class BackupRunner
                 $files,
                 $sqlPath,
                 $manifestPath,
-                $encrypted ? (string) $encryption['password'] : null
+                $encrypted ? (string) $encryption['password'] : null,
+                [$cancellation, 'checkpoint']
             );
             $archivePath = $this->storage->finalize($temporary, $final);
             $archiveSize = filesize($archivePath) ?: 0;
-            $archiveChecksum = hash_file('sha256', $archivePath);
+            $archiveChecksum = $this->hashFile($archivePath, $cancellation);
             $report->set('archive_size', $archiveSize);
             $report->set('archive_checksum', $archiveChecksum);
 
@@ -245,7 +258,7 @@ class BackupRunner
             }
             $report->set('mail', $mailResult->toArray());
 
-            $uploaded = $this->uploadToRemote($profile, $archivePath, $archiveChecksum, $report, $runId);
+            $uploaded = $this->uploadToRemote($profile, $archivePath, $archiveChecksum, $report, $runId, $cancellation);
 
             // Локальная глубина при удавшейся выгрузке считается по keep_local:
             // держать на машине семь копий по 150 МБ, когда они же лежат в
@@ -289,6 +302,23 @@ class BackupRunner
                 'encrypted' => $encrypted,
             ]);
             return new BackupResult(true, $archivePath, $report->toArray());
+        } catch (BackupCancelledException $e) {
+            if ($archivePath && is_file($archivePath)) {
+                @unlink($archivePath);
+                $archivePath = null;
+            }
+            $report->cancel($this->platform->now());
+            if ($runId) {
+                $this->platform->runs()->finish($runId, [
+                    'status' => 'cancelled',
+                    'archive_path' => null,
+                    'report_json' => $report->toArray(),
+                    'error' => null,
+                    'completedon' => $this->platform->now(),
+                ]);
+            }
+            $this->platform->log('warning', $e->getMessage(), ['run_id' => $runId, 'profile' => $profileName]);
+            throw $e;
         } catch (\Throwable $e) {
             $report->error($e->getMessage());
             $report->complete($this->platform->now());
@@ -314,6 +344,9 @@ class BackupRunner
             if ($temporary && is_file($temporary)) {
                 @unlink($temporary);
             }
+            if ($cancellationMarker && is_file($cancellationMarker)) {
+                @unlink($cancellationMarker);
+            }
             $this->lock->release();
         }
     }
@@ -332,7 +365,7 @@ class BackupRunner
      *
      * @return bool Выгрузка удалась.
      */
-    private function uploadToRemote(array $profile, $archivePath, $archiveChecksum, RunReport $report, $runId)
+    private function uploadToRemote(array $profile, $archivePath, $archiveChecksum, RunReport $report, $runId, CancellationToken $cancellation)
     {
         try {
             $storage = $this->createRemoteStorage($profile);
@@ -351,12 +384,17 @@ class BackupRunner
         $name = basename($archivePath);
 
         try {
+            $cancellation->checkpoint(true);
             $location = $storage->upload($archivePath, $name, [
                 'sha256' => (string) $archiveChecksum,
                 'profile' => isset($profile['name']) ? (string) $profile['name'] : '',
                 'mxbackup' => self::VERSION,
-            ]);
+            ], [$cancellation, 'checkpoint']);
+            $cancellation->checkpoint(true);
         } catch (\Throwable $e) {
+            if ($e instanceof BackupCancelledException) {
+                throw $e;
+            }
             $report->warning('Архив не выгружен в ' . $storage->describe() . ': ' . $e->getMessage());
             $report->set('remote', [
                 'status' => 'error',
@@ -417,5 +455,29 @@ class BackupRunner
     {
         $value = preg_replace('/[^a-z0-9_-]+/i', '-', (string)$value);
         return trim($value, '-') ?: 'backup';
+    }
+
+    private function hashFile($path, CancellationToken $cancellation)
+    {
+        $handle = fopen($path, 'rb');
+        if ($handle === false) {
+            throw new RuntimeException('Не удалось открыть архив для подсчёта SHA-256.');
+        }
+        $context = hash_init('sha256');
+        try {
+            while (!feof($handle)) {
+                $chunk = fread($handle, 1024 * 1024);
+                if ($chunk === false) {
+                    throw new RuntimeException('Не удалось прочитать архив для подсчёта SHA-256.');
+                }
+                if ($chunk !== '') {
+                    hash_update($context, $chunk);
+                    $cancellation->checkpoint();
+                }
+            }
+        } finally {
+            fclose($handle);
+        }
+        return hash_final($context);
     }
 }

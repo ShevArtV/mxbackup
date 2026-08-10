@@ -40,6 +40,12 @@ final class RunReport
         }
     }
 
+    public function cancel($timestamp)
+    {
+        $this->completedAt = (int) $timestamp;
+        $this->status = 'cancelled';
+    }
+
     public function toArray()
     {
         return [

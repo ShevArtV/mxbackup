@@ -7,6 +7,8 @@ $_lang['mxbackup_tables'] = 'Database tables'; $_lang['mxbackup_masking'] = 'Ano
 $_lang['mxbackup_settings'] = 'Settings'; $_lang['mxbackup_settings_saved'] = 'Settings saved.';
 $_lang['mxbackup_run_profile']='Profile'; $_lang['mxbackup_create_backup']='Create backup'; $_lang['mxbackup_dryrun']='Inspect contents';
 $_lang['mxbackup_run'] = 'Run mxBackup'; $_lang['mxbackup_running'] = 'Creating backup…'; $_lang['mxbackup_finished'] = 'Operation completed.';
+$_lang['mxbackup_stop_backup'] = 'Stop backup'; $_lang['mxbackup_confirm_stop'] = 'Stop the running backup safely? Temporary files will be removed.'; $_lang['mxbackup_stop_requested'] = 'Backup cancellation requested.'; $_lang['mxbackup_no_active_run'] = 'No active backup found.';
+$_lang['mxbackup_source_size'] = 'File size'; $_lang['mxbackup_free_space'] = 'Free storage space';
 $_lang['mxbackup_confirm_run'] = 'Start backup?'; $_lang['mxbackup_confirm_dryrun'] = 'Inspect contents without creating an archive?'; $_lang['mxbackup_error'] = 'mxBackup error';
 $_lang['mxbackup_name']='Name'; $_lang['mxbackup_description']='Description'; $_lang['mxbackup_mode']='Mode'; $_lang['mxbackup_active']='Active';
 $_lang['mxbackup_mode_prod']='Production'; $_lang['mxbackup_mode_dev']='Development'; $_lang['mxbackup_mode_custom']='Custom'; $_lang['mxbackup_format']='Archive format';
@@ -20,6 +22,7 @@ $_lang['mxbackup_refresh']='Refresh'; $_lang['mxbackup_run_details']='Run detail
 $_lang['mxbackup_run_type_dry']='Composition check'; $_lang['mxbackup_run_type_backup']='Archive creation'; $_lang['mxbackup_no_archive_dry']='No archive is created';
 $_lang['mxbackup_run_type_restore']='Restore';
 $_lang['mxbackup_status_running']='Running'; $_lang['mxbackup_status_success']='Success'; $_lang['mxbackup_status_warning']='Completed with warnings'; $_lang['mxbackup_status_error']='Error';
+$_lang['mxbackup_status_cancelling']='Stopping'; $_lang['mxbackup_status_cancelled']='Stopped';
 $_lang['mxbackup_warnings']='Warnings'; $_lang['mxbackup_errors']='Errors'; $_lang['mxbackup_none']='None';
 $_lang['mxbackup_search_table']='Search any part of the table name';
 $_lang['mxbackup_files']='Site files'; $_lang['mxbackup_file_include']='Include'; $_lang['mxbackup_file_include_desc']='One path or pattern per line. * includes all files.'; $_lang['mxbackup_file_exclude']='Exclude'; $_lang['mxbackup_file_exclude_desc']='One path or pattern per line. End directories with /.';

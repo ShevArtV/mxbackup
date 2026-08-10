@@ -3,6 +3,7 @@
 namespace MxBackup\Cli;
 
 use MxBackup\Bootstrap;
+use MxBackup\Core\BackupEstimator;
 use MxBackup\Core\Config\ConfigValidator;
 use MxBackup\Core\Storage\LocalStorage;
 use MxBackup\Core\Storage\PathValidator;
@@ -46,6 +47,22 @@ final class Application
             if ($command === 'cleanup') {
                 return $this->cleanup($config);
             }
+            if ($command === 'estimate') {
+                echo json_encode(
+                    (new BackupEstimator(Bootstrap::platform($this->modx)))->estimate($config),
+                    JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+                ) . PHP_EOL;
+                return 0;
+            }
+            if ($command === 'cancel') {
+                $id = isset($options['id']) ? (int) $options['id'] : 0;
+                if (!Bootstrap::platform($this->modx)->runs()->requestCancel($id)) {
+                    fwrite(STDERR, 'Активный backup не найден.' . PHP_EOL);
+                    return 1;
+                }
+                echo 'Запрошена остановка резервного копирования.' . PHP_EOL;
+                return 0;
+            }
             if ($command === 'remote-list') {
                 return $this->remoteList($config);
             }
@@ -80,7 +97,7 @@ final class Application
         $profile = $config['profile'];
         $format = $profile['format'];
         if ($format === 'zip' && !class_exists('ZipArchive')) $errors[] = 'Отсутствует ext-zip.';
-        if ($format === 'tar.gz' && !class_exists('PharData')) $errors[] = 'Отсутствует Phar.';
+        if ($format === 'tar.gz' && !function_exists('gzopen')) $errors[] = 'Отсутствует zlib.';
         try {
             $platform = Bootstrap::platform($this->modx);
             $root = realpath($platform->getSiteRoot());
@@ -352,11 +369,13 @@ final class Application
     private function help()
     {
         echo <<<'TXT'
-mxBackup 1.4.1-rc
+mxBackup 1.5.0-rc
 
 Usage:
   mxbackup.php backup --profile=prod [options]
   mxbackup.php dry-run --profile=dev [options]
+  mxbackup.php estimate --profile=prod [options]
+  mxbackup.php cancel [--id=RUN_ID]
   mxbackup.php validate-config [options]
   mxbackup.php list-profiles [options]
   mxbackup.php cleanup [options]
