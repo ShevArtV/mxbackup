@@ -12,6 +12,8 @@ $_lang['mxbackup_source_size'] = 'File size'; $_lang['mxbackup_free_space'] = 'F
 $_lang['mxbackup_confirm_run'] = 'Start backup?'; $_lang['mxbackup_confirm_dryrun'] = 'Inspect contents without creating an archive?'; $_lang['mxbackup_error'] = 'mxBackup error';
 $_lang['mxbackup_name']='Name'; $_lang['mxbackup_description']='Description'; $_lang['mxbackup_mode']='Mode'; $_lang['mxbackup_active']='Active';
 $_lang['mxbackup_mode_prod']='Production'; $_lang['mxbackup_mode_dev']='Development'; $_lang['mxbackup_mode_custom']='Custom'; $_lang['mxbackup_format']='Archive format';
+$_lang['mxbackup_profile_storage_path']='Profile archive directory';
+$_lang['mxbackup_profile_storage_path_desc']='Absolute path outside the web root. Leave empty to use the shared directory from system settings.';
 $_lang['mxbackup_encryption']='AES-256 encryption'; $_lang['mxbackup_encryption_short']='Encryption'; $_lang['mxbackup_encryption_desc']='Available only for ZIP. The contents of every archive entry are encrypted.';
 $_lang['mxbackup_encryption_password']='Archive password'; $_lang['mxbackup_encryption_password_desc']='Use a long random password and keep it outside the site.'; $_lang['mxbackup_encryption_password_keep_desc']='A password is already configured. Leave blank to keep it or enter a replacement.';
 $_lang['mxbackup_profile']='Profile'; $_lang['mxbackup_profile_id']='Profile ID'; $_lang['mxbackup_target_type']='Target type'; $_lang['mxbackup_target']='Target';

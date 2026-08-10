@@ -17,16 +17,31 @@ final class ProfileEditorTest extends TestCase
         ];
         $updated = $editor->update($current, [
             'mode' => 'dev', 'format' => 'zip',
+            'storage_path' => '  /srv/backups/dev  ',
             'file_include' => "*\nassets/uploads/",
             'file_exclude' => "core/cache/\n*.log\ncore/cache/",
             'standard_masking' => 0,
         ]);
         self::assertSame('zip', $updated['format']);
+        self::assertSame('/srv/backups/dev', $updated['storage_path']);
         self::assertSame(['*', 'assets/uploads/'], $updated['files']['include']);
         self::assertSame(['core/cache/', '*.log'], $updated['files']['exclude']);
         self::assertTrue($updated['masking']['standard'], 'Development masking cannot be disabled');
         self::assertSame(['modx_users'], $updated['database']['include_tables']);
         self::assertSame('modx_custom.email', $updated['masking']['rules'][0]['target']);
+    }
+
+    public function testStoragePathCanInheritGlobalSettingAndIsPreservedForOlderClients()
+    {
+        $editor = new ProfileEditor();
+
+        self::assertArrayNotHasKey('storage_path', $editor->update([], [
+            'mode' => 'prod', 'format' => 'tar.gz', 'storage_path' => '   ',
+        ]));
+        self::assertSame('/srv/backups/prod', $editor->update(
+            ['storage_path' => '/srv/backups/prod'],
+            ['mode' => 'prod', 'format' => 'tar.gz']
+        )['storage_path']);
     }
 
     public function testAllExceptModeStoresOnlyExcludedTables()

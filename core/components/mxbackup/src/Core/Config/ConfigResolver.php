@@ -55,6 +55,9 @@ final class ConfigResolver
         if (isset($file['profiles'][$profileName])) {
             $profile = $this->merge($profile, $file['profiles'][$profileName]);
         }
+        if (!isset($profile['storage_path']) || trim((string) $profile['storage_path']) === '') {
+            $profile['storage_path'] = isset($systemConfig['storage_path']) ? $systemConfig['storage_path'] : '';
+        }
 
         foreach (['storage_path', 'format'] as $key) {
             if (array_key_exists($key, $file) && $file[$key] !== '') {

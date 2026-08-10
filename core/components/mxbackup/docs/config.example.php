@@ -7,6 +7,7 @@ return [
         'prod' => [
             'mode' => 'prod',
             'format' => 'tar.gz',
+            'storage_path' => '/home/site/backups/prod',
             'encryption' => ['enabled' => false, 'password' => ''],
             'files' => [
                 'include' => ['*'],
@@ -21,6 +22,7 @@ return [
         'dev' => [
             'mode' => 'dev',
             'format' => 'zip',
+            'storage_path' => '/home/site/backups/dev',
             'encryption' => [
                 'enabled' => true,
                 'password' => 'replace-with-a-long-random-password',

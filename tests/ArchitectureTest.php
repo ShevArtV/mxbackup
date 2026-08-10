@@ -46,12 +46,14 @@ final class ArchitectureTest extends TestCase
             'mode' => 'prod',
             'active' => true,
             'format' => 'zip',
+            'storage_path' => '/srv/backups/prod',
             'encryption' => ['enabled' => true, 'password' => 'must-not-leak'],
             'files' => ['include' => ['*'], 'exclude' => []],
             'masking' => ['standard' => false],
         ]);
 
         self::assertTrue($row['encryption_enabled']);
+        self::assertSame('/srv/backups/prod', $row['storage_path']);
         self::assertTrue($row['encryption_password_set']);
         self::assertArrayNotHasKey('encryption_password', $row);
         self::assertStringNotContainsString('must-not-leak', json_encode($row));

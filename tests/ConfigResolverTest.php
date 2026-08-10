@@ -34,6 +34,19 @@ final class ConfigResolverTest extends TestCase
         self::assertSame('tar.gz', $config['profile']['format']);
     }
 
+    public function testEmptyProfileStoragePathInheritsSystemSetting()
+    {
+        $config = (new ConfigResolver())->resolve(
+            Defaults::values(),
+            ['storage_path' => '/system/backups'],
+            ['prod' => ['storage_path' => '']],
+            [],
+            ['profile' => 'prod']
+        );
+
+        self::assertSame('/system/backups', $config['profile']['storage_path']);
+    }
+
     public function testSystemSettingBeatsBuiltInDefault()
     {
         $config = (new ConfigResolver())->resolve(Defaults::values(), ['format' => 'zip'], [], [], ['profile' => 'prod']);

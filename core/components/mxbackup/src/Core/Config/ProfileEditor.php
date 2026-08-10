@@ -19,6 +19,14 @@ final class ProfileEditor
         }
 
         $current['format'] = $format;
+        if (array_key_exists('storage_path', $properties)) {
+            $storagePath = trim((string) $properties['storage_path']);
+            if ($storagePath === '') {
+                unset($current['storage_path']);
+            } else {
+                $current['storage_path'] = $storagePath;
+            }
+        }
         $current['encryption'] = isset($current['encryption']) && is_array($current['encryption'])
             ? $current['encryption']
             : ['enabled' => false, 'password' => ''];

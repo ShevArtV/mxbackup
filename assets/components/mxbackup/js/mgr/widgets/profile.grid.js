@@ -3,7 +3,7 @@ MxBackup.grid.Profiles = function (config) {
     Ext.apply(config, {
         id: 'mxbackup-grid-profiles', url: MxBackup.config.connectorUrl,
         baseParams: {action: 'mgr/profile/getlist'},
-        fields: ['id','name','description','mode','active','format','encryption_enabled','encryption_password_set','file_include','file_exclude','standard_masking','remote_driver','remote_keep_local','remote_retention_days','remote_retention_count','remote_s3_bucket','remote_s3_region','remote_s3_prefix','remote_s3_endpoint','remote_s3_storage_class','remote_s3_access_key','remote_s3_secret_set','createdon','editedon'],
+        fields: ['id','name','description','mode','active','format','storage_path','encryption_enabled','encryption_password_set','file_include','file_exclude','standard_masking','remote_driver','remote_keep_local','remote_retention_days','remote_retention_count','remote_s3_bucket','remote_s3_region','remote_s3_prefix','remote_s3_endpoint','remote_s3_storage_class','remote_s3_access_key','remote_s3_secret_set','createdon','editedon'],
         paging: true, pageSize: 20, remoteSort: true, autosave: false,
         columns: [
             {header: _('mxbackup_name'), dataIndex: 'name', width: 130},
@@ -52,6 +52,7 @@ Ext.extend(MxBackup.grid.Profiles, MODx.grid.Grid, {
                 {xtype: 'textfield', fieldLabel: _('mxbackup_name'), name: 'name', anchor: '100%', value: record.name || ''},
                 {xtype: 'modx-combo', fieldLabel: _('mxbackup_mode'), name: 'mode_display', hiddenName: 'mode', store: new Ext.data.ArrayStore({fields:['value','display'],data:[['prod',_('mxbackup_mode_prod')],['dev',_('mxbackup_mode_dev')],['custom',_('mxbackup_mode_custom')]]}), displayField:'display', valueField:'value', mode:'local', triggerAction:'all', editable:false, anchor:'100%', value:record.mode || 'custom'},
                 {xtype: 'modx-combo', fieldLabel: _('mxbackup_format'), name: 'format_display', hiddenName: 'format', store: new Ext.data.ArrayStore({fields:['value','display'],data:[['tar.gz','tar.gz'],['zip','ZIP']]}), displayField:'display', valueField:'value', mode:'local', triggerAction:'all', editable:false, anchor:'100%', value:record.format || 'tar.gz'},
+                {xtype: 'textfield', fieldLabel: _('mxbackup_profile_storage_path'), description: _('mxbackup_profile_storage_path_desc'), name: 'storage_path', anchor: '100%', value: record.storage_path || ''},
                 {xtype: 'hidden', name: 'encryption_enabled', value: 0},
                 {xtype: 'checkbox', fieldLabel: _('mxbackup_encryption'), description: _('mxbackup_encryption_desc'), name: 'encryption_enabled', inputValue: 1, checked: MxBackup.bool(record.encryption_enabled)},
                 {xtype: 'textfield', inputType: 'password', fieldLabel: _('mxbackup_encryption_password'), description: record.encryption_password_set ? _('mxbackup_encryption_password_keep_desc') : _('mxbackup_encryption_password_desc'), name: 'encryption_password', anchor: '100%', value: ''},

@@ -18,6 +18,7 @@ final class mxBackupProfileStoreHelper
             'mode' => isset($profile['mode']) ? (string) $profile['mode'] : 'custom',
             'active' => !empty($profile['active']),
             'format' => isset($profile['format']) ? (string) $profile['format'] : 'tar.gz',
+            'storage_path' => isset($profile['storage_path']) ? (string) $profile['storage_path'] : '',
             'encryption_enabled' => !empty($profile['encryption']['enabled']),
             'encryption_password_set' => isset($profile['encryption']['password'])
                 && (string) $profile['encryption']['password'] !== '',
