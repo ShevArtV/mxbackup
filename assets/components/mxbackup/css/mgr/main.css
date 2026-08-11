@@ -5,9 +5,6 @@
 .mxbackup-actions .x-toolbar { background: none; border: 0; padding: 10px 12px; }
 .mxbackup-actions .x-btn { margin-left: 8px; }
 .mxbackup-tabs .x-tab-panel-body { background: #fff; }
-/* Тема менеджера отбивает иконку от подписи только у кнопок без текста
-   (.x-btn-icon), поэтому у кнопки с текстом глиф прижимается вплотную. */
-.mxbackup-tabs .x-toolbar .x-btn-text.icon:before { margin-right: 6px; }
 /* ExtJS задаёт футеру кнопок ширину в px при рендере и не пересчитывает её при
    изменении ширины контейнера: после ресайза окна или сворачивания дерева
    кнопка «Сохранить» уезжала за границу панели. Ширину задаёт inline-стиль,
@@ -22,9 +19,6 @@
    в окне правила они перевешивают саму таблицу условий. */
 .mxbackup-when-grid .x-toolbar .x-btn { padding: 3px 9px; }
 .mxbackup-when-grid .x-toolbar .x-btn button { font-size: 11px; }
-/* Отбивка глифа от подписи: правило темы для .mxbackup-tabs сюда не достаёт —
-   окно правила рендерится в body, вне панели вкладок. */
-.mxbackup-when-grid .x-toolbar .x-btn-text.icon:before { margin-right: 6px; }
 .mxbackup-when-grid .mxbackup-when-empty { color: #6f777a; padding: 12px 10px; }
 .mxbackup-when-grid .mxbackup-when-placeholder { color: #9aa2a5; font-style: italic; }
 /* Подсветка ячейки, из-за которой условие не сохранилось. */

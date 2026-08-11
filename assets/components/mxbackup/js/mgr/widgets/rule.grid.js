@@ -127,14 +127,14 @@ Ext.extend(MxBackup.grid.Masking, MODx.grid.Grid, {
                 return value === '' ? '<span class="mxbackup-when-placeholder">' + MxBackup.escape(placeholder) + '</span>' : MxBackup.escape(value);
             };
         };
-        var addButton = new Ext.Button({text:_('mxbackup_add_condition'),iconCls:'icon icon-plus',handler:function(){
+        var addButton = new Ext.Button({text:_('mxbackup_add_condition'),handler:function(){
             var row = new whenStore.recordType({column:'',pattern:''});
             whenStore.add(row);
             var index = whenStore.indexOf(row);
             whenGrid.getSelectionModel().selectRow(index);
             whenGrid.startEditing(index, 0);
         }});
-        var removeButton = new Ext.Button({text:_('remove'),iconCls:'icon icon-times',disabled:true,handler:function(){
+        var removeButton = new Ext.Button({text:_('remove'),disabled:true,handler:function(){
             var selected = whenGrid.getSelectionModel().getSelected();
             if (selected) whenStore.remove(selected);
         }});

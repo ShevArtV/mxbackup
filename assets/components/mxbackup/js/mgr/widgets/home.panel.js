@@ -19,7 +19,7 @@ MxBackup.panel.Home = function (config) {
                     {text: _('mxbackup_dryrun'), disabled: !MxBackup.config.canRun, handler: function () { var record = runProfile.store.getAt(runProfile.store.findExact('id', runProfile.getValue())); if (record) MxBackup.run(record.get('name'), true); }},
                     {text: _('mxbackup_validate_config'), handler: function () { var record = runProfile.store.getAt(runProfile.store.findExact('id', runProfile.getValue())); if (record) MxBackup.validateConfig(record.get('name')); }},
                     '->',
-                    {text: _('mxbackup_stop_backup'), iconCls: 'icon icon-times', disabled: !MxBackup.config.canRun, handler: function () { MxBackup.cancelRun(0); }}
+                    {text: _('mxbackup_stop_backup'), disabled: !MxBackup.config.canRun, handler: function () { MxBackup.cancelRun(0); }}
                 ],
                 listeners: {afterrender: {fn: function () {
                     runProfile.store.on('load', function (store) {
