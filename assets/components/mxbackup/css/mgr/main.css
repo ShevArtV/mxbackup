@@ -18,6 +18,10 @@
 .mxbackup-when-grid .x-grid3-cell-inner { padding: 5px 7px; }
 .mxbackup-when-grid .x-grid3-hd-inner { padding: 4px 7px; }
 .mxbackup-when-grid .x-toolbar { padding: 3px 4px; }
+/* Тема менеджера рисует кнопки тулбара крупными (padding 10px 15px, шрифт 13px):
+   в окне правила они перевешивают саму таблицу условий. */
+.mxbackup-when-grid .x-toolbar .x-btn { padding: 3px 9px; }
+.mxbackup-when-grid .x-toolbar .x-btn button { font-size: 11px; }
 .mxbackup-when-grid .mxbackup-when-empty { color: #6f777a; padding: 12px 10px; }
 .mxbackup-when-grid .mxbackup-when-placeholder { color: #9aa2a5; font-style: italic; }
 /* Подсветка ячейки, из-за которой условие не сохранилось. */
