@@ -1,29 +1,6 @@
 <?php
 
-namespace {
-    if (!defined('MODX_CORE_PATH')) {
-        define('MODX_CORE_PATH', '/tmp/modx-core/');
-    }
-
-    if (!class_exists('modX')) {
-        class modX
-        {
-            const LOG_LEVEL_DEBUG = 1;
-            const LOG_LEVEL_INFO = 2;
-            const LOG_LEVEL_WARN = 3;
-            const LOG_LEVEL_ERROR = 4;
-
-            public $mxlogger;
-            public $service;
-            public $logs = [];
-
-            public function getOption($key, $options = null, $default = null) { return $default; }
-            public function addPackage($package, $path) { return true; }
-            public function getService($name, $class, $path) { return $this->service; }
-            public function log($level, $message) { $this->logs[] = compact('level', 'message'); }
-        }
-    }
-}
+// Фейковый modX объявлен в tests/Fake/modx.php и подключается из bootstrap.
 
 namespace MxBackup\Tests {
     use MxBackup\Platform\Modx2\Modx2Platform;

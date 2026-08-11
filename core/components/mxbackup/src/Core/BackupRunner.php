@@ -113,6 +113,15 @@ class BackupRunner
             }
             $cancellationMarker = rtrim($storagePath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . '.mxbackup-cancel-' . $runId;
             $cancellation = new CancellationToken($this->platform->runs(), $runId, 0.2, $cancellationMarker);
+            // Тик долгих стадий: и точка отмены, и keepalive базы. Упаковка
+            // архива с выгрузкой идут минутами без единого запроса, за это время
+            // сервер закрывает соединение по своему таймауту, и следующая
+            // запись в историю падает с «MySQL server has gone away».
+            $database = $this->platform->database();
+            $tick = static function () use ($cancellation, $database) {
+                $cancellation->checkpoint();
+                $database->keepAlive();
+            };
             $this->platform->log('info', 'Запуск резервного копирования.', [
                 'run_id' => $runId,
                 'profile' => $profileName,
@@ -220,7 +229,7 @@ class BackupRunner
                 $sqlPath,
                 $tables,
                 isset($config['batch_size']) ? (int)$config['batch_size'] : 500,
-                [$cancellation, 'checkpoint'],
+                $tick,
                 $this->progress
             );
             foreach ($databaseReport['warnings'] as $warning) {
@@ -260,13 +269,13 @@ class BackupRunner
                 $sqlPath,
                 $manifestPath,
                 $encrypted ? (string) $encryption['password'] : null,
-                [$cancellation, 'checkpoint'],
+                $tick,
                 $this->progress
             );
             $archivePath = $this->storage->finalize($temporary, $final);
             $archiveSize = filesize($archivePath) ?: 0;
             $this->progress->stage('Контрольная сумма', $archiveSize);
-            $archiveChecksum = $this->hashFile($archivePath, $cancellation);
+            $archiveChecksum = $this->hashFile($archivePath, $tick);
             $report->set('archive_size', $archiveSize);
             $report->set('archive_checksum', $archiveChecksum);
 
@@ -280,7 +289,7 @@ class BackupRunner
             }
             $report->set('mail', $mailResult->toArray());
 
-            $uploaded = $this->uploadToRemote($profile, $archivePath, $archiveChecksum, $report, $runId, $cancellation);
+            $uploaded = $this->uploadToRemote($profile, $archivePath, $archiveChecksum, $report, $runId, $cancellation, $tick);
 
             // Локальная глубина при удавшейся выгрузке считается по keep_local:
             // держать на машине семь копий по 150 МБ, когда они же лежат в
@@ -390,7 +399,7 @@ class BackupRunner
      *
      * @return bool Выгрузка удалась.
      */
-    private function uploadToRemote(array $profile, $archivePath, $archiveChecksum, RunReport $report, $runId, CancellationToken $cancellation)
+    private function uploadToRemote(array $profile, $archivePath, $archiveChecksum, RunReport $report, $runId, CancellationToken $cancellation, callable $tick)
     {
         try {
             $storage = $this->createRemoteStorage($profile);
@@ -415,7 +424,7 @@ class BackupRunner
                 'sha256' => (string) $archiveChecksum,
                 'profile' => isset($profile['name']) ? (string) $profile['name'] : '',
                 'mxbackup' => self::VERSION,
-            ], [$cancellation, 'checkpoint'], $this->progress);
+            ], $tick, $this->progress);
             $cancellation->checkpoint(true);
         } catch (\Throwable $e) {
             if ($e instanceof BackupCancelledException) {
@@ -509,7 +518,7 @@ class BackupRunner
         return trim($value, '-') ?: 'backup';
     }
 
-    private function hashFile($path, CancellationToken $cancellation)
+    private function hashFile($path, callable $tick)
     {
         $handle = fopen($path, 'rb');
         if ($handle === false) {
@@ -524,7 +533,7 @@ class BackupRunner
                 }
                 if ($chunk !== '') {
                     hash_update($context, $chunk);
-                    $cancellation->checkpoint();
+                    $tick();
                     $this->progress->advance(strlen($chunk));
                 }
             }

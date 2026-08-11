@@ -48,6 +48,9 @@ final class BackupRunnerTest extends TestCase
         self::assertSame('zip-aes-256', $result->getReport()['stats']['encryption_method']);
         self::assertStringNotContainsString('integration-test-password', json_encode($result->getReport()));
         self::assertSame(['info', 'info'], array_column($platform->logs, 'level'));
+        // Долгие стадии тикают keepalive: иначе к финальной записи в историю
+        // соединение с базой уже закрыто сервером по wait_timeout.
+        self::assertGreaterThan(0, $database->keepAliveCalls);
         $zip->close();
 
         foreach (glob($storage . '/*') ?: [] as $file) @unlink($file);

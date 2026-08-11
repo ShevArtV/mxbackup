@@ -64,6 +64,9 @@ final class RestoreRunnerTest extends TestCase
         self::assertSame('restore', $result->getReport()['stats']['operation']);
         self::assertStringNotContainsString('restore-runner-secret', json_encode($result->getReport()));
         self::assertSame('restore', $platform->runs->records[1]['report_json']['stats']['operation']);
+        // Соединение поддерживается перед каждым походом в базу после долгой
+        // стадии: страховочная копия, импорт дампа и запись истории.
+        self::assertGreaterThanOrEqual(3, $database->keepAliveCalls);
 
         $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($base, \FilesystemIterator::SKIP_DOTS), \RecursiveIteratorIterator::CHILD_FIRST);
         foreach ($iterator as $item) $item->isDir() ? @rmdir($item->getPathname()) : @unlink($item->getPathname());

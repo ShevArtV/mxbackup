@@ -7,11 +7,18 @@ use RuntimeException;
 
 final class DatabaseAdapter implements DatabaseAdapterInterface
 {
+    private $connection;
     private $modx;
 
-    public function __construct(\modX $modx)
+    public function __construct(Connection $connection)
     {
-        $this->modx = $modx;
+        $this->connection = $connection;
+        $this->modx = $connection->modx();
+    }
+
+    public function keepAlive()
+    {
+        $this->connection->keepAlive();
     }
 
     public function listTables()
@@ -68,29 +75,52 @@ final class DatabaseAdapter implements DatabaseAdapterInterface
 
     public function beginConsistentSnapshot()
     {
-        $this->modx->exec('SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ');
-        if ($this->modx->exec('START TRANSACTION WITH CONSISTENT SNAPSHOT') === false) {
+        // Перед снапшотом соединение поднимается заново, если успело умереть:
+        // внутри транзакции это уже будет запрещено.
+        $this->connection->run(function () {
+            return $this->modx->exec('SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ');
+        });
+        $started = $this->connection->run(function () {
+            return $this->modx->exec('START TRANSACTION WITH CONSISTENT SNAPSHOT');
+        });
+        if ($started === false) {
             throw new RuntimeException('Не удалось начать consistent snapshot.');
         }
+        $this->connection->freeze(true);
     }
 
     public function finishConsistentSnapshot($commit = true)
     {
-        $this->modx->exec($commit ? 'COMMIT' : 'ROLLBACK');
+        $this->connection->freeze(false);
+        try {
+            $this->modx->exec($commit ? 'COMMIT' : 'ROLLBACK');
+        } catch (\Throwable $e) {
+            // Откат по оборванному соединению — не новость: транзакция умерла
+            // вместе с ним, и сервер уже всё откатил. Молчим, чтобы не подменить
+            // исходную причину падения дампа этой вторичной ошибкой.
+            if ($commit) {
+                throw $e;
+            }
+        }
     }
 
     public function isTransactional($table)
     {
-        $statement = $this->modx->prepare('SHOW TABLE STATUS LIKE ?');
-        if (!$statement || !$statement->execute([$table])) {
-            return false;
-        }
-        $row = $statement->fetch(\PDO::FETCH_ASSOC);
-        return $row && in_array(strtolower((string)$row['Engine']), ['innodb', 'ndbcluster'], true);
+        return $this->connection->run(function () use ($table) {
+            $statement = $this->modx->prepare('SHOW TABLE STATUS LIKE ?');
+            if (!$statement || !$statement->execute([$table])) {
+                return false;
+            }
+            $row = $statement->fetch(\PDO::FETCH_ASSOC);
+            return $row && in_array(strtolower((string)$row['Engine']), ['innodb', 'ndbcluster'], true);
+        });
     }
 
     public function executeRestoreStatement($sql)
     {
+        // ⚠️ Без повтора: восстановление гонит поток DDL и DML, и повторить
+        // запрос, судьба которого неизвестна, значит рискнуть вторым INSERT.
+        // Живость соединения обеспечивает keepAlive() перед стадией импорта.
         $result = $this->modx->exec((string)$sql);
         if ($result === false) {
             $error = $this->modx->errorInfo();
@@ -102,7 +132,9 @@ final class DatabaseAdapter implements DatabaseAdapterInterface
 
     private function query($sql)
     {
-        $statement = $this->modx->query($sql);
+        $statement = $this->connection->run(function () use ($sql) {
+            return $this->modx->query($sql);
+        });
         if (!$statement) {
             throw new RuntimeException('Ошибка SQL при создании dump.');
         }

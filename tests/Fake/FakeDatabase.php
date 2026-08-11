@@ -8,12 +8,14 @@ final class FakeDatabase implements DatabaseAdapterInterface
 {
     private $tables;
     public $restoredStatements = [];
+    public $keepAliveCalls = 0;
 
     public function __construct(array $tables)
     {
         $this->tables = $tables;
     }
 
+    public function keepAlive() { $this->keepAliveCalls++; }
     public function listTables() { return array_keys($this->tables); }
     public function getCreateTableSql($table) { return 'CREATE TABLE `' . $table . '` (`id` int NOT NULL) ENGINE=InnoDB'; }
     public function describeTable($table)

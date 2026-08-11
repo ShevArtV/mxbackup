@@ -100,6 +100,11 @@ final class RestoreRunner
             // рабочий каталог с уже распакованным архивом передаётся как
             // защищённый — иначе restore потеряет данные, которые восстанавливает.
             $safetyConfig['preserve_paths'] = [$workspace];
+            // Распаковка большого архива занимает минуты, за которые сервер
+            // базы успевает закрыть простаивающее соединение. Дальше идёт
+            // страховочный backup, а он начинается с записи в историю —
+            // 11.08.2026 восстановление на этом и падало.
+            $this->platform->database()->keepAlive();
             $this->progress->stage('Страховочная копия');
             $safetyArchive = $this->createSafetyBackup($safetyConfig);
             $report->set('operation', 'restore');
@@ -135,6 +140,8 @@ final class RestoreRunner
                 $report->set('restored_files', (new FileRestorer())->restore($info['site_path'], $siteRoot, $this->progress));
             }
             if ($scope === 'all' || $scope === 'database') {
+                // Раскладка файлов сайта — снова долгий простой перед потоком SQL.
+                $this->platform->database()->keepAlive();
                 $this->progress->stage('Импорт базы');
                 $report->set('restored_database', (new DatabaseImporter($this->platform->database()))
                     ->import($info['database_path'], $this->progress));
@@ -242,6 +249,7 @@ final class RestoreRunner
 
     private function saveHistory(array $info, array $report, $started)
     {
+        $this->platform->database()->keepAlive();
         $runId = $this->platform->runs()->start([
             'profile' => isset($info['manifest']['profile']) ? $info['manifest']['profile'] : 'restore',
             'mode' => isset($info['manifest']['mode']) ? $info['manifest']['mode'] : 'restore',
