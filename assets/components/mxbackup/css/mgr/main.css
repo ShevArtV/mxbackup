@@ -13,6 +13,17 @@
    кнопка «Сохранить» уезжала за границу панели. Ширину задаёт inline-стиль,
    поэтому перебить его можно только !important. */
 .mxbackup-tabs .x-panel-footer { width: auto !important; }
+/* Таблица условий внутри окна правила: у грида в форме отступы заметно крупнее,
+   чем у соседних полей, поэтому ячейки поджимаем вручную. */
+.mxbackup-when-grid .x-grid3-cell-inner { padding: 5px 7px; }
+.mxbackup-when-grid .x-grid3-hd-inner { padding: 4px 7px; }
+.mxbackup-when-grid .x-toolbar { padding: 3px 4px; }
+.mxbackup-when-grid .mxbackup-when-empty { color: #6f777a; padding: 12px 10px; }
+.mxbackup-when-grid .mxbackup-when-placeholder { color: #9aa2a5; font-style: italic; }
+/* Подсветка ячейки, из-за которой условие не сохранилось. */
+.mxbackup-when-grid td.mxbackup-when-invalid .x-grid3-cell-inner { background: #f8e6e6; box-shadow: inset 0 0 0 1px #d99a9a; }
+.mxbackup-when-desc, .mxbackup-when-hint { color: #6f777a; font-size: 11px; line-height: 1.45; }
+.mxbackup-when-hint { padding-top: 5px; }
 .mxbackup-toggle { border-radius: 12px; cursor: pointer; display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; }
 .mxbackup-toggle.on { background: #e2f3e8; color: #247a43; }
 .mxbackup-toggle.off { background: #f3e7e7; color: #9a4545; }

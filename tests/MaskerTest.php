@@ -5,6 +5,7 @@ namespace MxBackup\Tests;
 use MxBackup\Core\Masking\Masker;
 use MxBackup\Core\Masking\StandardRules;
 use MxBackup\Core\Masking\RuleFactory;
+use MxBackup\Core\Masking\Rule;
 use PHPUnit\Framework\TestCase;
 
 final class MaskerTest extends TestCase
@@ -120,6 +121,26 @@ final class MaskerTest extends TestCase
         self::assertSame('служебное', $kept['body']);
         $cleared = $masker->maskRow('modx_notes', ['author' => 'ivan', 'body' => 'личное']);
         self::assertSame('', $cleared['body']);
+    }
+
+    public function testWhenFromManagerJsonIsNormalized()
+    {
+        self::assertSame(
+            ['key' => ['*secret*', '!*_ttl'], 'context_key' => ['web']],
+            Rule::parseWhen('{"key":[" *SECRET* ","!*_ttl","*secret*"],"context_key":"WEB"}')
+        );
+    }
+
+    public function testInvalidWhenJsonIsRejected()
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        Rule::parseWhen('{"key":');
+    }
+
+    public function testWhenWithoutPatternsIsRejected()
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        Rule::parseWhen(['key' => []]);
     }
 
     public function testConditionalRuleIsSkippedWhenConditionColumnIsAbsent()

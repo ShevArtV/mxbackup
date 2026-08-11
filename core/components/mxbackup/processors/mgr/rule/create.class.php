@@ -59,6 +59,7 @@ class mxBackupRuleValidator
         if ($action === 'replace' && $processor->getProperty('value') === null) {
             throw new InvalidArgumentException($processor->modx->lexicon('field_required'));
         }
+        $when = self::when($processor);
         $rules = isset($profile['masking']['rules']) && is_array($profile['masking']['rules'])
             ? $profile['masking']['rules']
             : [];
@@ -75,9 +76,19 @@ class mxBackupRuleValidator
             'target' => $target,
             'action' => $action,
             'value' => $processor->getProperty('value'),
+            'when' => $when,
             'priority' => (int) $processor->getProperty('priority', 100),
             'active' => mxBackupProfileStoreHelper::boolean($processor->getProperty('active', 1)),
         ];
+    }
+
+    private static function when(modProcessor $processor)
+    {
+        try {
+            return \MxBackup\Core\Masking\Rule::parseWhen($processor->getProperty('when', ''));
+        } catch (InvalidArgumentException $e) {
+            throw new InvalidArgumentException($processor->modx->lexicon('mxbackup_invalid_when'));
+        }
     }
 }
 

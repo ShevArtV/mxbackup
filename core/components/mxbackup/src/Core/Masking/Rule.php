@@ -102,16 +102,44 @@ final class Rule
     public function getJsonPath() { return $this->jsonPath; }
     public function getWhen() { return $this->when; }
 
-    private static function normalizeWhen(array $when)
+    /**
+     * Разбирает значение формы (`when` приходит JSON-строкой) или массива из
+     * файлового профиля и возвращает единый формат для хранения.
+     */
+    public static function parseWhen($value)
+    {
+        if (is_string($value)) {
+            $value = trim($value);
+            if ($value === '') {
+                return [];
+            }
+            $value = json_decode($value, true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                throw new InvalidArgumentException('Условие masking содержит некорректный JSON.');
+            }
+        }
+        if (!is_array($value)) {
+            throw new InvalidArgumentException('Условие masking должно быть объектом.');
+        }
+        return self::normalizeWhen($value);
+    }
+
+    public static function normalizeWhen(array $when)
     {
         $normalized = [];
         foreach ($when as $column => $patterns) {
+            if (!is_string($column)) {
+                throw new InvalidArgumentException('Имя колонки в условии masking должно быть строкой.');
+            }
             $column = trim((string)$column);
             if ($column === '') {
-                continue;
+                throw new InvalidArgumentException('В условии masking не задано имя колонки.');
             }
             $list = [];
             foreach (is_array($patterns) ? $patterns : [$patterns] as $pattern) {
+                if (!is_scalar($pattern)) {
+                    throw new InvalidArgumentException('Шаблон условия masking должен быть строкой.');
+                }
                 $pattern = strtolower(trim((string)$pattern));
                 if ($pattern !== '' && $pattern !== '!') {
                     $list[] = $pattern;
@@ -120,7 +148,7 @@ final class Rule
             if (!$list) {
                 throw new InvalidArgumentException('Условие masking по колонке ' . $column . ' не содержит ни одного шаблона.');
             }
-            $normalized[$column] = $list;
+            $normalized[$column] = array_values(array_unique($list));
         }
         return $normalized;
     }
