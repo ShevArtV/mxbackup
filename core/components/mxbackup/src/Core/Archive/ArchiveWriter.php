@@ -2,27 +2,31 @@
 
 namespace MxBackup\Core\Archive;
 
+use MxBackup\Core\Progress\NullProgress;
+use MxBackup\Core\Progress\ProgressInterface;
 use RuntimeException;
 use ZipArchive;
 
 final class ArchiveWriter
 {
-    public function write($path, $format, iterable $files, $sqlPath, $manifestPath, $password = null, callable $checkpoint = null)
+    public function write($path, $format, iterable $files, $sqlPath, $manifestPath, $password = null, callable $checkpoint = null, ProgressInterface $progress = null)
     {
+        $progress = $progress ?: new NullProgress();
         if ($format === 'zip') {
-            return $this->writeZip($path, $files, $sqlPath, $manifestPath, $password, $checkpoint);
+            return $this->writeZip($path, $files, $sqlPath, $manifestPath, $password, $checkpoint, $progress);
         }
         if ($format === 'tar.gz') {
             if ($password !== null && $password !== '') {
                 throw new RuntimeException('Шифрование доступно только для ZIP.');
             }
-            return (new TarGzStreamWriter())->write($path, $files, $sqlPath, $manifestPath, $checkpoint);
+            return (new TarGzStreamWriter())->write($path, $files, $sqlPath, $manifestPath, $checkpoint, $progress);
         }
         throw new RuntimeException('Неподдерживаемый формат архива: ' . $format);
     }
 
-    private function writeZip($path, iterable $files, $sqlPath, $manifestPath, $password, callable $checkpoint = null)
+    private function writeZip($path, iterable $files, $sqlPath, $manifestPath, $password, callable $checkpoint = null, ProgressInterface $progress = null)
     {
+        $progress = $progress ?: new NullProgress();
         if (!class_exists('ZipArchive')) {
             throw new RuntimeException('Для ZIP требуется расширение ext-zip.');
         }
@@ -39,10 +43,17 @@ final class ArchiveWriter
             foreach ($files as $file) {
                 if ($checkpoint) $checkpoint();
                 $this->addZipFile($zip, $file['absolute'], 'site/' . $file['relative'], $password);
+                $progress->advance(1, $file['relative']);
             }
             if ($checkpoint) $checkpoint();
             $this->addZipFile($zip, $sqlPath, 'database.sql', $password);
+            $progress->advance(1, 'database.sql');
             $this->addZipFile($zip, $manifestPath, 'mxbackup-manifest.json', $password);
+            $progress->advance(1, 'mxbackup-manifest.json');
+            // Дальше ZipArchive пишет всё, что копил в памяти: на больших
+            // наборах это минуты без единого события, и без явной отметки
+            // выглядит как зависший счётчик на последнем файле.
+            $progress->advance(0, 'запись архива на диск');
             if (!$zip->close()) {
                 throw new RuntimeException('Не удалось завершить ZIP: ' . $path);
             }
@@ -54,6 +65,7 @@ final class ArchiveWriter
             throw $e;
         }
         if ($encrypted) {
+            $progress->advance(0, 'проверка шифрования');
             $this->verifyZipEncryption($path, $password);
         }
         return $path;

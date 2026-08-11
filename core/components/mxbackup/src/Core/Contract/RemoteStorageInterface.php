@@ -2,6 +2,8 @@
 
 namespace MxBackup\Core\Contract;
 
+use MxBackup\Core\Progress\ProgressInterface;
+
 /**
  * Удалённое хранилище архивов.
  *
@@ -27,9 +29,10 @@ interface RemoteStorageInterface
      * @param string                $path     Локальный файл.
      * @param string                $name     Имя архива (оно же хвост ключа).
      * @param array<string, string> $metadata Метки объекта: сумма, профиль, версия.
+     * @param ProgressInterface|null $progress Тикает отправленными байтами.
      * @return string Полный адрес объекта в хранилище.
      */
-    public function upload($path, $name, array $metadata = [], callable $checkpoint = null);
+    public function upload($path, $name, array $metadata = [], callable $checkpoint = null, ProgressInterface $progress = null);
 
     /**
      * Скачать архив в локальный файл.

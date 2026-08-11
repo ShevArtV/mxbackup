@@ -77,7 +77,7 @@ php core/components/mxbackup/cli/mxbackup.php restore --archive=/absolute/path/b
 
 Команда `cancel` останавливает текущий запуск; конкретный запуск можно указать
 через `--id=RUN_ID`. Доступные параметры: `--profile`, `--storage-path`, `--config`,
-`--format=tar.gz|zip`, `--mail-to`, `--no-mail`, `--verbose`. Для восстановления:
+`--format=tar.gz|zip`, `--mail-to`, `--no-mail`, `--no-progress`, `--verbose`. Для восстановления:
 `--archive`, `--scope=all|files|database`, `--checksum`, `--confirm` и
 `--password-file`. Пароль AES-256 также можно передать через переменную окружения
 `MXBACKUP_ARCHIVE_PASSWORD`; в аргументе командной строки пароль не принимается.

@@ -6,6 +6,8 @@ use MxBackup\Core\Config\ConfigValidator;
 use MxBackup\Core\Config\ConfigResolver;
 use MxBackup\Core\Config\Defaults;
 use MxBackup\Core\Contract\PlatformInterface;
+use MxBackup\Core\Progress\NullProgress;
+use MxBackup\Core\Progress\ProgressInterface;
 use MxBackup\Core\Report\RunReport;
 use MxBackup\Core\Restore\ArchiveReader;
 use MxBackup\Core\Restore\DatabaseImporter;
@@ -22,14 +24,16 @@ final class RestoreRunner
     private $storage;
     private $lock;
     private $safetyBackup;
+    private $progress;
 
-    public function __construct(PlatformInterface $platform, callable $safetyBackup = null)
+    public function __construct(PlatformInterface $platform, callable $safetyBackup = null, ProgressInterface $progress = null)
     {
         $this->platform = $platform;
         $this->reader = new ArchiveReader();
         $this->storage = new LocalStorage();
         $this->lock = new RunLock();
         $this->safetyBackup = $safetyBackup;
+        $this->progress = $progress ?: new NullProgress();
     }
 
     public function preflight($archivePath, $password = null, $expectedChecksum = null)
@@ -77,9 +81,11 @@ final class RestoreRunner
         }
 
         try {
+            $this->progress->plan($this->planStages($scope));
             $storagePath = $this->resolveStoragePath($safetyConfig, $siteRoot);
             $workspace = $this->storage->createWorkspace($storagePath);
-            $info = $this->reader->extract($archivePath, $workspace, $password);
+            $this->progress->stage('Распаковка архива');
+            $info = $this->reader->extract($archivePath, $workspace, $password, $this->progress);
             if ($expectedChecksum !== null && $expectedChecksum !== ''
                 && !hash_equals(strtolower((string)$expectedChecksum), strtolower($info['archive_checksum']))) {
                 throw new RuntimeException('Checksum архива не совпадает с историей запуска.');
@@ -94,6 +100,7 @@ final class RestoreRunner
             // рабочий каталог с уже распакованным архивом передаётся как
             // защищённый — иначе restore потеряет данные, которые восстанавливает.
             $safetyConfig['preserve_paths'] = [$workspace];
+            $this->progress->stage('Страховочная копия');
             $safetyArchive = $this->createSafetyBackup($safetyConfig);
             $report->set('operation', 'restore');
             $report->set('scope', $scope);
@@ -124,10 +131,13 @@ final class RestoreRunner
             ]);
 
             if ($scope === 'all' || $scope === 'files') {
-                $report->set('restored_files', (new FileRestorer())->restore($info['site_path'], $siteRoot));
+                $this->progress->stage('Восстановление файлов');
+                $report->set('restored_files', (new FileRestorer())->restore($info['site_path'], $siteRoot, $this->progress));
             }
             if ($scope === 'all' || $scope === 'database') {
-                $report->set('restored_database', (new DatabaseImporter($this->platform->database()))->import($info['database_path']));
+                $this->progress->stage('Импорт базы');
+                $report->set('restored_database', (new DatabaseImporter($this->platform->database()))
+                    ->import($info['database_path'], $this->progress));
             }
             $report->complete($this->platform->now());
             $this->saveHistory($info, $report->toArray(), $started);
@@ -147,9 +157,29 @@ final class RestoreRunner
             ]);
             throw $e;
         } finally {
+            $this->progress->finish();
             $this->lock->release();
             if ($workspace) $this->storage->removeTree($workspace);
         }
+    }
+
+    /**
+     * Стадии восстановления. Файлы и база — по scope: показывать «[4/5] Импорт
+     * базы» там, где базу не трогают, значит врать про объём работы.
+     *
+     * @return string[]
+     */
+    private function planStages($scope)
+    {
+        $stages = ['Распаковка архива', 'Страховочная копия'];
+        if ($scope === 'all' || $scope === 'files') {
+            $stages[] = 'Восстановление файлов';
+        }
+        if ($scope === 'all' || $scope === 'database') {
+            $stages[] = 'Импорт базы';
+        }
+
+        return $stages;
     }
 
     private function createSafetyBackup(array $config)
@@ -160,7 +190,10 @@ final class RestoreRunner
         if ($this->safetyBackup) {
             $path = call_user_func($this->safetyBackup, $safetyConfig);
         } else {
-            $result = (new BackupRunner($this->platform))->run($safetyConfig, false);
+            // Вложенный прогон печатает свои стадии с отступом и собственной
+            // нумерацией — иначе шесть стадий backup смешались бы с пятью
+            // стадиями restore.
+            $result = (new BackupRunner($this->platform, $this->progress->nested()))->run($safetyConfig, false);
             $path = $result->getArchivePath();
         }
         if (!$path || !is_file($path)) {

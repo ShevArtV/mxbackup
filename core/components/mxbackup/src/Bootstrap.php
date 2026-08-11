@@ -7,6 +7,7 @@ use MxBackup\Core\RestoreRunner;
 use MxBackup\Core\Config\ConfigLoader;
 use MxBackup\Core\Config\ConfigResolver;
 use MxBackup\Core\Config\Defaults;
+use MxBackup\Core\Progress\ProgressInterface;
 use MxBackup\Platform\Modx2\Modx2Platform;
 
 final class Bootstrap
@@ -51,13 +52,13 @@ final class Bootstrap
         );
     }
 
-    public static function runner(\modX $modx)
+    public static function runner(\modX $modx, ProgressInterface $progress = null)
     {
-        return new BackupRunner(self::platform($modx));
+        return new BackupRunner(self::platform($modx), $progress);
     }
 
-    public static function restoreRunner(\modX $modx)
+    public static function restoreRunner(\modX $modx, ProgressInterface $progress = null)
     {
-        return new RestoreRunner(self::platform($modx));
+        return new RestoreRunner(self::platform($modx), null, $progress);
     }
 }

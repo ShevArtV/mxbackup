@@ -2,6 +2,8 @@
 
 namespace MxBackup\Core\Archive;
 
+use MxBackup\Core\Progress\NullProgress;
+use MxBackup\Core\Progress\ProgressInterface;
 use RuntimeException;
 
 /** Однопроходный POSIX ustar writer без промежуточного несжатого TAR. */
@@ -10,11 +12,12 @@ final class TarGzStreamWriter
     private $stream;
     private $checkpoint;
 
-    public function write($path, iterable $files, $sqlPath, $manifestPath, callable $checkpoint = null)
+    public function write($path, iterable $files, $sqlPath, $manifestPath, callable $checkpoint = null, ProgressInterface $progress = null)
     {
         if (!function_exists('gzopen')) {
             throw new RuntimeException('Для tar.gz требуется расширение zlib.');
         }
+        $progress = $progress ?: new NullProgress();
         $this->checkpoint = $checkpoint;
         $this->stream = gzopen($path, 'wb6');
         if ($this->stream === false) {
@@ -24,9 +27,12 @@ final class TarGzStreamWriter
         try {
             foreach ($files as $file) {
                 $this->addFile($file['absolute'], 'site/' . $file['relative']);
+                $progress->advance(1, $file['relative']);
             }
             $this->addFile($sqlPath, 'database.sql');
+            $progress->advance(1, 'database.sql');
             $this->addFile($manifestPath, 'mxbackup-manifest.json');
+            $progress->advance(1, 'mxbackup-manifest.json');
             $this->writeAll(str_repeat("\0", 1024));
             if (!gzclose($this->stream)) {
                 throw new RuntimeException('Не удалось завершить tar.gz: ' . $path);

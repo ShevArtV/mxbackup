@@ -3,6 +3,7 @@
 namespace MxBackup\Tests\Fake;
 
 use MxBackup\Core\Contract\RemoteStorageInterface;
+use MxBackup\Core\Progress\ProgressInterface;
 use RuntimeException;
 
 /**
@@ -31,11 +32,16 @@ final class FakeRemoteStorage implements RemoteStorageInterface
         return 'fake://storage/';
     }
 
-    public function upload($path, $name, array $metadata = [], callable $checkpoint = null)
+    public function upload($path, $name, array $metadata = [], callable $checkpoint = null, ProgressInterface $progress = null)
     {
         if ($checkpoint) $checkpoint();
         if ($this->failUpload) {
             throw new RuntimeException('хранилище недоступно');
+        }
+
+        $size = is_file($path) ? (int) filesize($path) : 0;
+        if ($progress) {
+            $progress->advance($size);
         }
 
         $this->objects[$name] = [

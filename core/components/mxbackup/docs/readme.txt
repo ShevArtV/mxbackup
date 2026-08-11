@@ -1,4 +1,4 @@
-mxBackup 1.6.0-rc
+mxBackup 1.7.0-rc
 ===================
 
 mxBackup создаёт два вида резервных копий сайта MODX:
@@ -45,7 +45,7 @@ mxbackup.config_dir, системные настройки MODX, встроен�
 * restore — восстановить файлы, базу данных или оба компонента.
 
 Основные параметры: --profile, --storage-path, --config, --format=tar.gz|zip,
---mail-to, --no-mail, --verbose.
+--mail-to, --no-mail, --no-progress, --verbose.
 Для restore: --archive, --scope=all|files|database, --checksum, --confirm,
 --password-file. Пароль можно передать через MXBACKUP_ARCHIVE_PASSWORD.
 

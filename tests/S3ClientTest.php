@@ -2,6 +2,7 @@
 
 namespace MxBackup\Tests;
 
+use MxBackup\Core\Progress\ProgressInterface;
 use MxBackup\Core\Storage\Remote\CredentialProvider;
 use MxBackup\Core\Storage\Remote\S3Client;
 use PHPUnit\Framework\TestCase;
@@ -165,10 +166,15 @@ final class RecordingS3Client extends S3Client
         return '';
     }
 
-    protected function send($method, $url, array $headers, $uploadFile, $sink, callable $checkpoint = null)
+    protected function send($method, $url, array $headers, $uploadFile, $sink, callable $checkpoint = null, ProgressInterface $progress = null)
     {
         $this->lastUrl = $url;
         $this->lastHeaders = $headers;
+        // Сети здесь нет, значит и байтам взяться неоткуда: отмечаем размер
+        // файла разом, чтобы стадия выгрузки закрывалась заполненной.
+        if ($progress && $uploadFile !== null && is_file($uploadFile)) {
+            $progress->advance((int) filesize($uploadFile));
+        }
 
         if ($this->status < 200 || $this->status >= 300) {
             $body = count($this->responses) > 1 ? array_shift($this->responses) : $this->responses[0];

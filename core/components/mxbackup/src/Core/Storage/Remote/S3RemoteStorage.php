@@ -3,6 +3,7 @@
 namespace MxBackup\Core\Storage\Remote;
 
 use MxBackup\Core\Contract\RemoteStorageInterface;
+use MxBackup\Core\Progress\ProgressInterface;
 
 /**
  * Хранилище архивов в S3 или совместимом сервисе.
@@ -35,10 +36,10 @@ final class S3RemoteStorage implements RemoteStorageInterface
         return 's3://' . $this->bucket . '/' . $this->prefix;
     }
 
-    public function upload($path, $name, array $metadata = [], callable $checkpoint = null)
+    public function upload($path, $name, array $metadata = [], callable $checkpoint = null, ProgressInterface $progress = null)
     {
         $key = $this->prefix . $name;
-        $this->client->putFile($key, $path, $metadata, $this->storageClass, $checkpoint);
+        $this->client->putFile($key, $path, $metadata, $this->storageClass, $checkpoint, $progress);
 
         return 's3://' . $this->bucket . '/' . $key;
     }

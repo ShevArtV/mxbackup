@@ -5,6 +5,7 @@ namespace MxBackup\Cli;
 use MxBackup\Bootstrap;
 use MxBackup\Core\BackupEstimator;
 use MxBackup\Core\Config\ConfigValidator;
+use MxBackup\Core\Progress\NullProgress;
 use MxBackup\Core\Storage\LocalStorage;
 use MxBackup\Core\Storage\PathValidator;
 use MxBackup\Core\Storage\Remote\RemoteStorageFactory;
@@ -74,7 +75,7 @@ final class Application
             }
             if ($command === 'backup' || $command === 'dry-run') {
                 $dry = $command === 'dry-run' || !empty($options['dry-run']);
-                $result = Bootstrap::runner($this->modx)->run($config, $dry);
+                $result = Bootstrap::runner($this->modx, $this->progress($options))->run($config, $dry);
                 echo json_encode([
                     'success' => $result->isSuccess(),
                     'archive' => $result->getArchivePath(),
@@ -221,7 +222,9 @@ final class Application
             throw new \RuntimeException('Укажите --archive=/absolute/path/backup.zip или --from-remote=<имя архива>.');
         }
         $password = $this->archivePassword($options);
-        $runner = Bootstrap::restoreRunner($this->modx);
+        // Preflight укладывается в секунды, индикация нужна только самому
+        // восстановлению — но раннер один, поэтому прогресс отдаём сразу.
+        $runner = Bootstrap::restoreRunner($this->modx, $this->progress($options));
         try {
             $preflight = $runner->preflight(
                 $options['archive'],
@@ -318,6 +321,26 @@ final class Application
         return $password;
     }
 
+    /**
+     * Индикатор хода работы.
+     *
+     * Включён по умолчанию: прогон на большом сайте идёт минутами, и без него
+     * непонятно, работает процесс или завис. Вывод идёт в STDERR, поэтому JSON в
+     * STDOUT остаётся машиночитаемым, а вне терминала печатаются только начало и
+     * итог каждой стадии — в письме cron это как раз то, что нужно, чтобы
+     * увидеть, на чём всё оборвалось.
+     *
+     * @return \MxBackup\Core\Progress\ProgressInterface
+     */
+    private function progress(array $options)
+    {
+        if (!empty($options['no-progress'])) {
+            return new NullProgress();
+        }
+
+        return new ConsoleProgress();
+    }
+
     private function isInteractive()
     {
         return function_exists('stream_isatty') ? @stream_isatty(STDIN) : (function_exists('posix_isatty') && @posix_isatty(STDIN));
@@ -369,7 +392,7 @@ final class Application
     private function help()
     {
         echo <<<'TXT'
-mxBackup 1.6.0-rc
+mxBackup 1.7.0-rc
 
 Usage:
   mxbackup.php backup --profile=prod [options]
@@ -392,6 +415,7 @@ Options:
   --mail-to=user@example.test
   --no-mail
   --dry-run
+  --no-progress
   --verbose
   --archive=/absolute/path/backup.zip
   --from-remote=mxbackup-prod-20260808-020000.zip

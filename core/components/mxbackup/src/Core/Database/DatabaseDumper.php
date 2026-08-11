@@ -4,6 +4,8 @@ namespace MxBackup\Core\Database;
 
 use MxBackup\Core\Contract\DatabaseAdapterInterface;
 use MxBackup\Core\Masking\Masker;
+use MxBackup\Core\Progress\NullProgress;
+use MxBackup\Core\Progress\ProgressInterface;
 use RuntimeException;
 
 final class DatabaseDumper
@@ -17,8 +19,9 @@ final class DatabaseDumper
         $this->masker = $masker;
     }
 
-    public function dump($path, array $tables, $batchSize = 500, callable $checkpoint = null)
+    public function dump($path, array $tables, $batchSize = 500, callable $checkpoint = null, ProgressInterface $progress = null)
     {
+        $progress = $progress ?: new NullProgress();
         $handle = fopen($path, 'wb');
         if (!$handle) {
             throw new RuntimeException('Не удалось открыть SQL dump: ' . $path);
@@ -31,6 +34,7 @@ final class DatabaseDumper
             $snapshot = true;
             foreach ($tables as $table) {
                 if ($checkpoint) $checkpoint();
+                $progress->advance(0, $table);
                 $meta = $this->database->describeTable($table);
                 if ($this->masker) {
                     $this->masker->validateTable($table, $meta);
@@ -62,6 +66,7 @@ final class DatabaseDumper
                 fwrite($handle, "\n");
                 $report['tables'][$table] = ['rows' => $rows, 'truncated' => $truncated, 'transactional' => $transactional];
                 $report['rows'] += $rows;
+                $progress->advance(1, $table);
             }
             $this->database->finishConsistentSnapshot(true);
             $snapshot = false;

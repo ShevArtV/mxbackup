@@ -2,6 +2,8 @@
 
 namespace MxBackup\Core\Restore;
 
+use MxBackup\Core\Progress\NullProgress;
+use MxBackup\Core\Progress\ProgressInterface;
 use PharData;
 use RecursiveIteratorIterator;
 use RuntimeException;
@@ -60,8 +62,9 @@ final class ArchiveReader
         ];
     }
 
-    public function extract($archivePath, $workspace, $password = null)
+    public function extract($archivePath, $workspace, $password = null, ProgressInterface $progress = null)
     {
+        $progress = $progress ?: new NullProgress();
         $info = $this->inspect($archivePath, $password);
         $workspace = rtrim((string)$workspace, DIRECTORY_SEPARATOR);
         if (!is_dir($workspace) || !is_writable($workspace)) {
@@ -73,11 +76,13 @@ final class ArchiveReader
             throw new RuntimeException('Недостаточно места для безопасной распаковки архива.');
         }
 
+        $progress->total((int) $info['entries']);
         if ($info['format'] === 'zip') {
-            $this->extractZip($info['archive_path'], $workspace, $password);
+            $this->extractZip($info['archive_path'], $workspace, $password, $progress);
         } else {
-            $this->extractTar($info['archive_path'], $workspace);
+            $this->extractTar($info['archive_path'], $workspace, $progress);
         }
+        $progress->advance(0, 'сверка checksum');
         $afterExtractionChecksum = hash_file('sha256', $info['archive_path']);
         if ($afterExtractionChecksum === false
             || !hash_equals($info['archive_checksum'], strtolower($afterExtractionChecksum))) {
@@ -185,7 +190,7 @@ final class ArchiveReader
         }
     }
 
-    private function extractZip($archivePath, $workspace, $password)
+    private function extractZip($archivePath, $workspace, $password, ProgressInterface $progress)
     {
         $zip = new ZipArchive();
         if ($zip->open($archivePath) !== true) {
@@ -199,11 +204,14 @@ final class ArchiveReader
                 $stat = $zip->statIndex($index);
                 $name = $this->validateEntryName($stat['name']);
                 $target = $this->targetPath($workspace, $name);
-                if ($name === 'site' && !$file->isDir()) {
+                // В ZIP каталог — запись с завершающим слэшем, поэтому имя ровно
+                // `site` означает файл на месте каталога сайта.
+                if ($name === 'site') {
                     throw new RuntimeException('Элемент site в архиве должен быть каталогом.');
                 }
                 if (substr($name, -1) === '/') {
                     $this->ensureDirectory($target);
+                    $progress->advance(1, $name);
                     continue;
                 }
                 $this->ensureDirectory(dirname($target));
@@ -223,13 +231,14 @@ final class ArchiveReader
                     throw new RuntimeException('Элемент распакован не полностью: ' . $name);
                 }
                 @chmod($target, $this->zipEntryMode($zip, $index));
+                $progress->advance(1, $name);
             }
         } finally {
             $zip->close();
         }
     }
 
-    private function extractTar($archivePath, $workspace)
+    private function extractTar($archivePath, $workspace, ProgressInterface $progress)
     {
         try {
             $tar = new PharData($archivePath);
@@ -239,6 +248,7 @@ final class ArchiveReader
                 $target = $this->targetPath($workspace, $name);
                 if ($file->isDir()) {
                     $this->ensureDirectory($target);
+                    $progress->advance(1, $name);
                     continue;
                 }
                 $this->ensureDirectory(dirname($target));
@@ -246,6 +256,7 @@ final class ArchiveReader
                     throw new RuntimeException('Не удалось распаковать элемент: ' . $name);
                 }
                 @chmod($target, $file->getPerms() & 0777 ?: 0644);
+                $progress->advance(1, $name);
             }
             unset($tar);
         } catch (RuntimeException $e) {

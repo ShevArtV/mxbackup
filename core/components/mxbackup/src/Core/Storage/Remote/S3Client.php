@@ -2,6 +2,7 @@
 
 namespace MxBackup\Core\Storage\Remote;
 
+use MxBackup\Core\Progress\ProgressInterface;
 use RuntimeException;
 
 /**
@@ -74,7 +75,7 @@ class S3Client
      *
      * @param array<string, string> $metadata Пользовательские метаданные (x-amz-meta-*).
      */
-    public function putFile($key, $path, array $metadata = [], $storageClass = '', callable $checkpoint = null)
+    public function putFile($key, $path, array $metadata = [], $storageClass = '', callable $checkpoint = null, ProgressInterface $progress = null)
     {
         if (!is_readable($path)) {
             throw new RuntimeException('Файл недоступен для чтения: ' . $path);
@@ -95,7 +96,7 @@ class S3Client
             ? strtolower((string) $metadata['sha256'])
             : $this->hashFile($path, $checkpoint);
 
-        $this->request('PUT', $key, [], $headers, $payloadHash, $path, null, $checkpoint);
+        $this->request('PUT', $key, [], $headers, $payloadHash, $path, null, $checkpoint, $progress);
     }
 
     /**
@@ -189,7 +190,7 @@ class S3Client
      * @param string|null           $uploadFile Файл-источник для PUT.
      * @param resource|null         $sink       Куда писать тело ответа.
      */
-    private function request($method, $key, array $query, array $headers, $payloadHash, $uploadFile = null, $sink = null, callable $checkpoint = null)
+    private function request($method, $key, array $query, array $headers, $payloadHash, $uploadFile = null, $sink = null, callable $checkpoint = null, ProgressInterface $progress = null)
     {
         $credentials = $this->credentials->resolve();
         $timestamp = gmdate('Ymd\THis\Z');
@@ -252,7 +253,7 @@ class S3Client
             $url .= '?' . $this->canonicalQuery($query);
         }
 
-        return $this->send($method, $url, $requestHeaders, $uploadFile, $sink, $checkpoint);
+        return $this->send($method, $url, $requestHeaders, $uploadFile, $sink, $checkpoint, $progress);
     }
 
     /**
@@ -265,7 +266,7 @@ class S3Client
      * @param string|null        $uploadFile
      * @param resource|null      $sink
      */
-    protected function send($method, $url, array $headers, $uploadFile, $sink, callable $checkpoint = null)
+    protected function send($method, $url, array $headers, $uploadFile, $sink, callable $checkpoint = null, ProgressInterface $progress = null)
     {
         if (!function_exists('curl_init')) {
             throw new RuntimeException('Для работы с S3 нужен модуль curl.');
@@ -277,13 +278,31 @@ class S3Client
         curl_setopt($curl, CURLOPT_CONNECTTIMEOUT, 15);
         curl_setopt($curl, CURLOPT_TIMEOUT, $this->timeout);
         curl_setopt($curl, CURLOPT_FAILONERROR, false);
-        if ($checkpoint) {
+        if ($checkpoint || $progress) {
             curl_setopt($curl, CURLOPT_NOPROGRESS, false);
-            $progress = static function () use ($checkpoint) { $checkpoint(); return 0; };
+            $sent = 0;
+            // curl отдаёт накопленный итог, а прогрессу нужна дельта. При
+            // повторной отправке (redirect, retry внутри curl) счётчик
+            // начинается заново — такой откат считаем новым стартом, иначе
+            // дельта уйдёт в минус.
+            $callback = static function ($resource, $dltotal, $dlnow, $ultotal, $ulnow) use ($checkpoint, $progress, &$sent) {
+                if ($checkpoint) {
+                    $checkpoint();
+                }
+                if ($progress) {
+                    $ulnow = (int) $ulnow;
+                    $delta = $ulnow >= $sent ? $ulnow - $sent : $ulnow;
+                    $sent = $ulnow;
+                    if ($delta > 0) {
+                        $progress->advance($delta);
+                    }
+                }
+                return 0;
+            };
             if (defined('CURLOPT_XFERINFOFUNCTION')) {
-                curl_setopt($curl, CURLOPT_XFERINFOFUNCTION, $progress);
+                curl_setopt($curl, CURLOPT_XFERINFOFUNCTION, $callback);
             } else {
-                curl_setopt($curl, CURLOPT_PROGRESSFUNCTION, $progress);
+                curl_setopt($curl, CURLOPT_PROGRESSFUNCTION, $callback);
             }
         }
 

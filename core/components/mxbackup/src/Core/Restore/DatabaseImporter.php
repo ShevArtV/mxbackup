@@ -3,6 +3,8 @@
 namespace MxBackup\Core\Restore;
 
 use MxBackup\Core\Contract\DatabaseAdapterInterface;
+use MxBackup\Core\Progress\NullProgress;
+use MxBackup\Core\Progress\ProgressInterface;
 use RuntimeException;
 
 final class DatabaseImporter
@@ -14,12 +16,16 @@ final class DatabaseImporter
         $this->database = $database;
     }
 
-    public function import($sqlPath)
+    public function import($sqlPath, ProgressInterface $progress = null)
     {
+        $progress = $progress ?: new NullProgress();
         $handle = fopen((string)$sqlPath, 'rb');
         if (!$handle) {
             throw new RuntimeException('Не удалось открыть database.sql.');
         }
+        // Считаем прочитанные байты, а не выражения: сколько всего выражений в
+        // дампе, известно только после разбора, а размер файла — сразу.
+        $progress->total(filesize((string)$sqlPath) ?: 0);
         $buffer = '';
         $statements = 0;
         try {
@@ -32,6 +38,7 @@ final class DatabaseImporter
                         $statements++;
                     }
                 }
+                $progress->advance(strlen($chunk), number_format($statements, 0, '.', ' ') . ' выражений');
             }
             if (!feof($handle)) {
                 throw new RuntimeException('Ошибка чтения database.sql.');

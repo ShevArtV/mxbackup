@@ -3,14 +3,17 @@
 namespace MxBackup\Core\Restore;
 
 use FilesystemIterator;
+use MxBackup\Core\Progress\NullProgress;
+use MxBackup\Core\Progress\ProgressInterface;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
 
 final class FileRestorer
 {
-    public function restore($stagedSitePath, $siteRoot)
+    public function restore($stagedSitePath, $siteRoot, ProgressInterface $progress = null)
     {
+        $progress = $progress ?: new NullProgress();
         $source = realpath((string)$stagedSitePath);
         $targetRoot = realpath((string)$siteRoot);
         if ($source === false || !is_dir($source)) {
@@ -49,6 +52,7 @@ final class FileRestorer
             }
             $restored++;
             $bytes += (int)$file->getSize();
+            $progress->advance(1, $relative);
         }
         return ['files' => $restored, 'bytes' => $bytes, 'mode' => 'merge'];
     }
