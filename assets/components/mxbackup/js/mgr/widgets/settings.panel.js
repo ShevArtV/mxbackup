@@ -130,6 +130,43 @@ MxBackup.panel.Settings = function (config) {
                         minValue: 0
                     }
                 ]
+            },
+            {
+                xtype: 'fieldset',
+                title: _('area_mxbackup_s3'),
+                layout: 'form',
+                labelWidth: 220,
+                anchor: '100%',
+                defaults: {anchor: '100%', msgTarget: 'under'},
+                items: [
+                    {
+                        xtype: 'numberfield',
+                        fieldLabel: _('setting_mxbackup.s3_multipart_threshold_mb'),
+                        description: _('setting_mxbackup.s3_multipart_threshold_mb_desc'),
+                        name: 's3_multipart_threshold_mb',
+                        allowDecimals: true,
+                        allowNegative: false,
+                        minValue: 0
+                    },
+                    {
+                        xtype: 'numberfield',
+                        fieldLabel: _('setting_mxbackup.s3_part_size_mb'),
+                        description: _('setting_mxbackup.s3_part_size_mb_desc'),
+                        name: 's3_part_size_mb',
+                        allowDecimals: true,
+                        allowNegative: false,
+                        minValue: 5
+                    },
+                    {
+                        xtype: 'numberfield',
+                        fieldLabel: _('setting_mxbackup.s3_part_retries'),
+                        description: _('setting_mxbackup.s3_part_retries_desc'),
+                        name: 's3_part_retries',
+                        allowDecimals: false,
+                        allowNegative: false,
+                        minValue: 0
+                    }
+                ]
             }
         ],
         buttons: MxBackup.config.canManage ? [{

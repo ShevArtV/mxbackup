@@ -11,6 +11,9 @@ $definitions = [
     'mxbackup.retention_days' => ['30', 'numberfield', 'mxbackup_retention'],
     'mxbackup.retention_count' => ['10', 'numberfield', 'mxbackup_retention'],
     'mxbackup.lock_ttl_minutes' => ['720', 'numberfield', 'mxbackup_retention'],
+    'mxbackup.s3_multipart_threshold_mb' => ['16', 'numberfield', 'mxbackup_s3'],
+    'mxbackup.s3_part_size_mb' => ['16', 'numberfield', 'mxbackup_s3'],
+    'mxbackup.s3_part_retries' => ['3', 'numberfield', 'mxbackup_s3'],
 ];
 $settings = [];
 foreach ($definitions as $key => $definition) {

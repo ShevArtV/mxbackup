@@ -32,7 +32,7 @@ class BackupRunner
     // Единственная строка, которой ядро линии MODX 2 отличается от линии MODX 3:
     // версия попадает в manifest архива, а нумерация у линий разная
     // (мажор означает платформу).
-    const VERSION = '1.7.0-rc';
+    const VERSION = '1.9.0-rc';
 
     private $platform;
     private $storage;
@@ -289,7 +289,7 @@ class BackupRunner
             }
             $report->set('mail', $mailResult->toArray());
 
-            $uploaded = $this->uploadToRemote($profile, $archivePath, $archiveChecksum, $report, $runId, $cancellation, $tick);
+            $uploaded = $this->uploadToRemote($profile, $archivePath, $archiveChecksum, $report, $runId, $cancellation, $tick, $config);
 
             // Локальная глубина при удавшейся выгрузке считается по keep_local:
             // держать на машине семь копий по 150 МБ, когда они же лежат в
@@ -399,8 +399,22 @@ class BackupRunner
      *
      * @return bool Выгрузка удалась.
      */
-    private function uploadToRemote(array $profile, $archivePath, $archiveChecksum, RunReport $report, $runId, CancellationToken $cancellation, callable $tick)
+    private function uploadToRemote(array $profile, $archivePath, $archiveChecksum, RunReport $report, $runId, CancellationToken $cancellation, callable $tick, array $config = [])
     {
+        $s3Upload = isset($config['s3_upload']) && is_array($config['s3_upload']) ? $config['s3_upload'] : [];
+        if ($s3Upload) {
+            if (!isset($profile['remote']) || !is_array($profile['remote'])) {
+                $profile['remote'] = [];
+            }
+            $s3 = isset($profile['remote']['s3']) && is_array($profile['remote']['s3']) ? $profile['remote']['s3'] : [];
+            foreach (['multipart_threshold_mb', 'part_size_mb', 'part_retries'] as $key) {
+                if (array_key_exists($key, $s3Upload)) {
+                    $s3[$key] = $s3Upload[$key];
+                }
+            }
+            $profile['remote']['s3'] = $s3;
+        }
+
         try {
             $storage = $this->createRemoteStorage($profile);
         } catch (\Throwable $e) {

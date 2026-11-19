@@ -60,6 +60,13 @@ final class Defaults
                 'count' => 10,
             ],
             'lock_ttl_minutes' => 720,
+            // Параметры multipart-выгрузки в S3: системные, не профиля.
+            // Порог 0 — всегда одиночный PUT (отладка / крошечные бакеты).
+            's3_upload' => [
+                'multipart_threshold_mb' => 16,
+                'part_size_mb' => 16,
+                'part_retries' => 3,
+            ],
             'batch_size' => 500,
             'allow_web_storage' => false,
             'profiles' => [

@@ -53,6 +53,7 @@ $_lang['mxbackup_restore_running']='Restoring…'; $_lang['mxbackup_restore_fini
 $_lang['area_mxbackup_general'] = 'General';
 $_lang['area_mxbackup_mail'] = 'Email';
 $_lang['area_mxbackup_retention'] = 'Retention';
+$_lang['area_mxbackup_s3'] = 'S3';
 $_lang['setting_mxbackup.storage_path'] = 'Archive directory';
 $_lang['setting_mxbackup.storage_path_desc'] = 'Absolute path outside the web root. Leave empty to use the backups directory next to the site root.';
 $_lang['setting_mxbackup.config_dir'] = 'Profile configuration directory';
@@ -75,6 +76,12 @@ $_lang['setting_mxbackup.retention_count'] = 'Keep archives';
 $_lang['setting_mxbackup.retention_count_desc'] = '0 disables the archive count limit.';
 $_lang['setting_mxbackup.lock_ttl_minutes'] = 'Lock TTL, minutes';
 $_lang['setting_mxbackup.lock_ttl_minutes_desc'] = 'Reference interval used to diagnose a stuck backup run.';
+$_lang['setting_mxbackup.s3_multipart_threshold_mb'] = 'Multipart threshold, MB';
+$_lang['setting_mxbackup.s3_multipart_threshold_mb_desc'] = 'Archives at least this large are uploaded to S3 in parts. 0 keeps a single PUT.';
+$_lang['setting_mxbackup.s3_part_size_mb'] = 'Part size, MB';
+$_lang['setting_mxbackup.s3_part_size_mb_desc'] = 'Multipart chunk size. Minimum 5 MB (S3 limit), except for the last part.';
+$_lang['setting_mxbackup.s3_part_retries'] = 'S3 part retries';
+$_lang['setting_mxbackup.s3_part_retries_desc'] = 'How many times to retry a failed part after a network drop or 5xx response.';
 
 // Remote archive storage (1.4.0-rc)
 $_lang['mxbackup_remote'] = 'Remote storage';

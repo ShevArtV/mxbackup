@@ -35,6 +35,11 @@ final class Bootstrap
                 'count' => (int)$platform->getOption('mxbackup.retention_count', 10),
             ],
             'lock_ttl_minutes' => (int)$platform->getOption('mxbackup.lock_ttl_minutes', 720),
+            's3_upload' => [
+                'multipart_threshold_mb' => (float) $platform->getOption('mxbackup.s3_multipart_threshold_mb', 16),
+                'part_size_mb' => (float) $platform->getOption('mxbackup.s3_part_size_mb', 16),
+                'part_retries' => (int) $platform->getOption('mxbackup.s3_part_retries', 3),
+            ],
         ];
 
         $configPath = isset($cli['config_path']) && $cli['config_path'] !== ''

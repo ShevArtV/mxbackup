@@ -13,21 +13,21 @@ use RuntimeException;
  * mxBackup ставится transport-архивом и не имеет ни одной зависимости времени
  * выполнения (`composer.json`: только `php >= 7.4`). Тянуть `aws/aws-sdk-php`
  * значило бы либо класть его vendor внутрь пакета, либо требовать composer на
- * каждом сайте, где нужен бэкап в облако. Нужны четыре операции, и подпись
- * SigV4 — единственная нетривиальная часть.
+ * каждом сайте, где нужен бэкап в облако. Нужны операции хранения архивов, и
+ * подпись SigV4 — единственная нетривиальная часть.
  *
  * ## Что поддерживается
  *
- * PUT (потоково, с диска), GET (в файл), DELETE, ListObjectsV2. Хватает, чтобы
- * положить архив, забрать его для восстановления, перечислить копии и удалить
- * лишние по ротации. Multipart-загрузка не реализована: предел одиночного PUT —
- * 5 ГБ, а архив такого размера в PHP-процессе не соберётся раньше по другим
- * причинам (память, время, лимиты хостера).
+ * PUT (потоково, с диска), multipart PUT с ретраем частей, GET (в файл),
+ * DELETE, ListObjectsV2. Хватает, чтобы положить архив, пережить обрыв сети на
+ * крупной выгрузке, забрать копию для восстановления, перечислить и удалить
+ * лишние по ротации.
  */
 class S3Client
 {
     const ALGORITHM = 'AWS4-HMAC-SHA256';
     const SERVICE = 's3';
+    const UNSIGNED_PAYLOAD = 'UNSIGNED-PAYLOAD';
 
     /** @var string */
     private $bucket;
@@ -47,6 +47,18 @@ class S3Client
     /** @var int */
     private $timeout;
 
+    /** @var int Байты: файл не меньше порога уходит multipart. 0 — всегда single PUT. */
+    private $multipartThresholdBytes;
+
+    /** @var int */
+    private $partBytes;
+
+    /** @var int */
+    private $partRetries;
+
+    /** @var array<string, string> protected ради тестового транспорта. */
+    protected $lastResponseHeaders = [];
+
     public function __construct(array $config, CredentialProvider $credentials = null)
     {
         $this->bucket = isset($config['bucket']) ? (string) $config['bucket'] : '';
@@ -54,6 +66,14 @@ class S3Client
         $this->pathStyle = !empty($config['path_style']);
         $this->timeout = isset($config['timeout']) ? (int) $config['timeout'] : 900;
         $this->credentials = $credentials ?: new CredentialProvider($config);
+        $this->multipartThresholdBytes = $this->mbToBytes(
+            isset($config['multipart_threshold_mb']) ? $config['multipart_threshold_mb'] : 16
+        );
+        $this->partBytes = max(
+            S3MultipartUploader::MIN_PART_BYTES,
+            $this->mbToBytes(isset($config['part_size_mb']) ? $config['part_size_mb'] : 16)
+        );
+        $this->partRetries = max(0, (int) (isset($config['part_retries']) ? $config['part_retries'] : 3));
 
         if ($this->bucket === '') {
             throw new RuntimeException('Не задан бакет S3.');
@@ -89,6 +109,17 @@ class S3Client
             $headers['x-amz-storage-class'] = $storageClass;
         }
 
+        $size = filesize($path);
+        if ($size !== false
+            && $this->multipartThresholdBytes > 0
+            && (int) $size >= $this->multipartThresholdBytes
+        ) {
+            (new S3MultipartUploader($this, $this->partBytes, $this->partRetries))
+                ->upload($key, $path, $headers, $checkpoint, $progress);
+
+            return;
+        }
+
         // Сумма содержимого нужна подписи. Она уже посчитана прогоном (архив
         // проверяется контрольной суммой), но клиент обязан работать и сам по
         // себе — повторный проход по файлу дешевле неверной подписи.
@@ -97,6 +128,109 @@ class S3Client
             : $this->hashFile($path, $checkpoint);
 
         $this->request('PUT', $key, [], $headers, $payloadHash, $path, null, $checkpoint, $progress);
+    }
+
+    /**
+     * @param array<string, string> $headers
+     * @return string UploadId
+     */
+    public function createMultipartUpload($key, array $headers = [])
+    {
+        $body = $this->request(
+            'POST',
+            $key,
+            ['uploads' => ''],
+            $headers,
+            hash('sha256', ''),
+            null,
+            null,
+            null,
+            null,
+            ''
+        );
+        $xml = @simplexml_load_string($body);
+        if ($xml === false || !isset($xml->UploadId) || (string) $xml->UploadId === '') {
+            throw new RuntimeException('S3 не вернул UploadId для multipart.');
+        }
+
+        return (string) $xml->UploadId;
+    }
+
+    /**
+     * @return string ETag части (как отдал S3, обычно в кавычках).
+     */
+    public function uploadPart(
+        $key,
+        $uploadId,
+        $partNumber,
+        $path,
+        $offset,
+        $length,
+        callable $checkpoint = null,
+        ProgressInterface $progress = null
+    ) {
+        $this->request(
+            'PUT',
+            $key,
+            [
+                'partNumber' => (string) (int) $partNumber,
+                'uploadId' => (string) $uploadId,
+            ],
+            [],
+            self::UNSIGNED_PAYLOAD,
+            [
+                'path' => $path,
+                'offset' => (int) $offset,
+                'length' => (int) $length,
+            ],
+            null,
+            $checkpoint,
+            $progress
+        );
+
+        $etag = $this->responseHeader('etag');
+        if ($etag === '') {
+            throw new RuntimeException('S3 не вернул ETag для части ' . $partNumber);
+        }
+
+        return $etag;
+    }
+
+    /**
+     * @param array<int, array{part_number: int, etag: string}> $parts
+     */
+    public function completeMultipartUpload($key, $uploadId, array $parts)
+    {
+        $xml = '<CompleteMultipartUpload>';
+        foreach ($parts as $part) {
+            $xml .= '<Part><PartNumber>' . (int) $part['part_number'] . '</PartNumber>'
+                . '<ETag>' . htmlspecialchars((string) $part['etag'], ENT_XML1) . '</ETag></Part>';
+        }
+        $xml .= '</CompleteMultipartUpload>';
+
+        $this->request(
+            'POST',
+            $key,
+            ['uploadId' => (string) $uploadId],
+            ['content-type' => 'application/xml'],
+            hash('sha256', $xml),
+            null,
+            null,
+            null,
+            null,
+            $xml
+        );
+    }
+
+    public function abortMultipartUpload($key, $uploadId)
+    {
+        $this->request(
+            'DELETE',
+            $key,
+            ['uploadId' => (string) $uploadId],
+            [],
+            hash('sha256', '')
+        );
     }
 
     /**
@@ -185,13 +319,24 @@ class S3Client
     /**
      * Подписанный запрос.
      *
-     * @param array<string, string> $query
-     * @param array<string, string> $headers
-     * @param string|null           $uploadFile Файл-источник для PUT.
-     * @param resource|null         $sink       Куда писать тело ответа.
+     * @param array<string, string>     $query
+     * @param array<string, string>     $headers
+     * @param string|array|null         $upload Файл или ['path','offset','length'].
+     * @param resource|null             $sink
+     * @param string|null               $body   Тело запроса без файла (XML complete).
      */
-    private function request($method, $key, array $query, array $headers, $payloadHash, $uploadFile = null, $sink = null, callable $checkpoint = null, ProgressInterface $progress = null)
-    {
+    private function request(
+        $method,
+        $key,
+        array $query,
+        array $headers,
+        $payloadHash,
+        $upload = null,
+        $sink = null,
+        callable $checkpoint = null,
+        ProgressInterface $progress = null,
+        $body = null
+    ) {
         $credentials = $this->credentials->resolve();
         $timestamp = gmdate('Ymd\THis\Z');
         $date = substr($timestamp, 0, 8);
@@ -253,7 +398,7 @@ class S3Client
             $url .= '?' . $this->canonicalQuery($query);
         }
 
-        return $this->send($method, $url, $requestHeaders, $uploadFile, $sink, $checkpoint, $progress);
+        return $this->send($method, $url, $requestHeaders, $upload, $sink, $checkpoint, $progress, $body);
     }
 
     /**
@@ -262,22 +407,41 @@ class S3Client
      * protected, а не private, ради тестов: подмена транспорта — единственный
      * способ проверить саму подпись, не выходя в сеть.
      *
-     * @param array<int, string> $headers
-     * @param string|null        $uploadFile
-     * @param resource|null      $sink
+     * @param array<int, string>        $headers
+     * @param string|array|null         $upload
+     * @param resource|null             $sink
+     * @param string|null               $body
      */
-    protected function send($method, $url, array $headers, $uploadFile, $sink, callable $checkpoint = null, ProgressInterface $progress = null)
-    {
+    protected function send(
+        $method,
+        $url,
+        array $headers,
+        $upload,
+        $sink,
+        callable $checkpoint = null,
+        ProgressInterface $progress = null,
+        $body = null
+    ) {
         if (!function_exists('curl_init')) {
             throw new RuntimeException('Для работы с S3 нужен модуль curl.');
         }
 
+        $this->lastResponseHeaders = [];
         $curl = curl_init($url);
         curl_setopt($curl, CURLOPT_CUSTOMREQUEST, $method);
         curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
         curl_setopt($curl, CURLOPT_CONNECTTIMEOUT, 15);
         curl_setopt($curl, CURLOPT_TIMEOUT, $this->timeout);
         curl_setopt($curl, CURLOPT_FAILONERROR, false);
+        curl_setopt($curl, CURLOPT_HEADERFUNCTION, function ($ch, $line) {
+            $trimmed = trim($line);
+            if ($trimmed !== '' && strpos($trimmed, ':') !== false) {
+                [$name, $value] = array_map('trim', explode(':', $trimmed, 2));
+                $this->lastResponseHeaders[strtolower($name)] = $value;
+            }
+
+            return strlen($line);
+        });
         if ($checkpoint || $progress) {
             curl_setopt($curl, CURLOPT_NOPROGRESS, false);
             $sent = 0;
@@ -297,6 +461,7 @@ class S3Client
                         $progress->advance($delta);
                     }
                 }
+
                 return 0;
             };
             if (defined('CURLOPT_XFERINFOFUNCTION')) {
@@ -307,16 +472,45 @@ class S3Client
         }
 
         $handle = null;
-        if ($uploadFile !== null) {
-            $handle = fopen($uploadFile, 'rb');
+        if (is_array($upload)) {
+            $path = isset($upload['path']) ? (string) $upload['path'] : '';
+            $offset = isset($upload['offset']) ? (int) $upload['offset'] : 0;
+            $length = isset($upload['length']) ? (int) $upload['length'] : 0;
+            $handle = fopen($path, 'rb');
             if ($handle === false) {
-                throw new RuntimeException('Не удалось открыть файл: ' . $uploadFile);
+                throw new RuntimeException('Не удалось открыть файл: ' . $path);
+            }
+            if ($offset > 0 && fseek($handle, $offset) !== 0) {
+                fclose($handle);
+                throw new RuntimeException('Не удалось спозиционировать чтение части файла: ' . $path);
+            }
+            $remaining = $length;
+            curl_setopt($curl, CURLOPT_UPLOAD, true);
+            curl_setopt($curl, CURLOPT_INFILESIZE, $length);
+            curl_setopt($curl, CURLOPT_READFUNCTION, static function ($ch, $fd, $want) use ($handle, &$remaining) {
+                if ($remaining <= 0) {
+                    return '';
+                }
+                $chunk = fread($handle, min($want, $remaining));
+                if ($chunk === false || $chunk === '') {
+                    return '';
+                }
+                $remaining -= strlen($chunk);
+
+                return $chunk;
+            });
+        } elseif ($upload !== null) {
+            $handle = fopen($upload, 'rb');
+            if ($handle === false) {
+                throw new RuntimeException('Не удалось открыть файл: ' . $upload);
             }
             // Потоковая отправка: архив в 150 МБ не должен оказаться в памяти
             // PHP-процесса целиком — memory_limit на хостингах меньше.
             curl_setopt($curl, CURLOPT_PUT, true);
             curl_setopt($curl, CURLOPT_INFILE, $handle);
-            curl_setopt($curl, CURLOPT_INFILESIZE, filesize($uploadFile));
+            curl_setopt($curl, CURLOPT_INFILESIZE, filesize($upload));
+        } elseif ($body !== null) {
+            curl_setopt($curl, CURLOPT_POSTFIELDS, $body);
         }
 
         if ($sink !== null) {
@@ -330,7 +524,7 @@ class S3Client
         }
 
         try {
-            $body = curl_exec($curl);
+            $responseBody = curl_exec($curl);
             $status = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
             $error = curl_error($curl);
         } finally {
@@ -340,15 +534,32 @@ class S3Client
             }
         }
 
-        if ($body === false && $error !== '') {
+        if ($responseBody === false && $error !== '') {
             throw new RuntimeException('Запрос к S3 не выполнен: ' . $error);
         }
 
         if ($status < 200 || $status >= 300) {
-            throw new RuntimeException('S3 ответил HTTP ' . $status . $this->explain(is_string($body) ? $body : ''));
+            throw new RuntimeException('S3 ответил HTTP ' . $status . $this->explain(is_string($responseBody) ? $responseBody : ''));
         }
 
-        return is_string($body) ? $body : '';
+        return is_string($responseBody) ? $responseBody : '';
+    }
+
+    private function responseHeader($name)
+    {
+        $key = strtolower((string) $name);
+
+        return isset($this->lastResponseHeaders[$key]) ? $this->lastResponseHeaders[$key] : '';
+    }
+
+    private function mbToBytes($mb)
+    {
+        $mb = (float) $mb;
+        if ($mb <= 0) {
+            return 0;
+        }
+
+        return (int) round($mb * 1048576);
     }
 
     private function hashFile($path, callable $checkpoint = null)
@@ -366,12 +577,15 @@ class S3Client
                 }
                 if ($chunk !== '') {
                     hash_update($context, $chunk);
-                    if ($checkpoint) $checkpoint();
+                    if ($checkpoint) {
+                        $checkpoint();
+                    }
                 }
             }
         } finally {
             fclose($handle);
         }
+
         return hash_final($context);
     }
 
@@ -435,6 +649,8 @@ class S3Client
         ksort($query);
         $parts = [];
         foreach ($query as $name => $value) {
+            // Пустое значение у `uploads` в CreateMultipartUpload — это
+            // `uploads=`, а не отсутствие параметра.
             $parts[] = rawurlencode((string) $name) . '=' . rawurlencode((string) $value);
         }
 

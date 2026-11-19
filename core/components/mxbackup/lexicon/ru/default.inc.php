@@ -172,6 +172,7 @@ $_lang['mxbackup_restore_safety_backup'] = 'Страховочный backup';
 $_lang['area_mxbackup_general'] = 'Общие';
 $_lang['area_mxbackup_mail'] = 'Почта';
 $_lang['area_mxbackup_retention'] = 'Хранение';
+$_lang['area_mxbackup_s3'] = 'S3';
 $_lang['setting_mxbackup.storage_path'] = 'Каталог архивов';
 $_lang['setting_mxbackup.storage_path_desc'] = 'Абсолютный путь вне webroot. Пусто — каталог backups рядом с корнем сайта.';
 $_lang['setting_mxbackup.config_dir'] = 'Каталог конфигураций профилей';
@@ -194,6 +195,12 @@ $_lang['setting_mxbackup.retention_count'] = 'Хранить архивов';
 $_lang['setting_mxbackup.retention_count_desc'] = '0 — не ограничивать количество.';
 $_lang['setting_mxbackup.lock_ttl_minutes'] = 'TTL блокировки, минут';
 $_lang['setting_mxbackup.lock_ttl_minutes_desc'] = 'Справочное время для диагностики зависшего запуска.';
+$_lang['setting_mxbackup.s3_multipart_threshold_mb'] = 'Порог multipart, МБ';
+$_lang['setting_mxbackup.s3_multipart_threshold_mb_desc'] = 'Архивы не меньше этого размера выгружаются в S3 частями. 0 — всегда одним запросом.';
+$_lang['setting_mxbackup.s3_part_size_mb'] = 'Размер части, МБ';
+$_lang['setting_mxbackup.s3_part_size_mb_desc'] = 'Размер куска multipart-выгрузки. Минимум 5 МБ (ограничение S3), кроме последней части.';
+$_lang['setting_mxbackup.s3_part_retries'] = 'Повторы части S3';
+$_lang['setting_mxbackup.s3_part_retries_desc'] = 'Сколько раз повторить выгрузку упавшей части при обрыве сети или ответе 5xx.';
 
 // Удалённое хранилище архивов (1.4.0-rc)
 $_lang['mxbackup_remote'] = 'Удалённое хранилище';

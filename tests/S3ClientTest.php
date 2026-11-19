@@ -114,9 +114,77 @@ final class S3ClientTest extends TestCase
         $client->deleteObject('a.zip');
     }
 
+    public function testPutFileBelowThresholdUsesSinglePut()
+    {
+        $path = sys_get_temp_dir() . '/mx-s3-small-' . bin2hex(random_bytes(4));
+        file_put_contents($path, str_repeat('a', 1024));
+        $client = $this->client('', ['multipart_threshold_mb' => 16]);
+        $client->putFile('small.bin', $path, ['sha256' => hash('sha256', str_repeat('a', 1024))]);
+
+        $this->assertCount(1, $client->calls);
+        $this->assertSame('PUT', $client->calls[0]['method']);
+        $this->assertStringNotContainsString('uploads', $client->calls[0]['url']);
+        @unlink($path);
+    }
+
+    public function testPutFileAtThresholdUsesMultipartAndRetriesPart()
+    {
+        $path = sys_get_temp_dir() . '/mx-s3-multi-' . bin2hex(random_bytes(4));
+        // 6 МБ — выше порога 5 МБ и больше одной части при part_size 5 МБ.
+        file_put_contents($path, str_repeat('b', 6 * 1048576));
+        $client = $this->client([
+            '<?xml version="1.0"?><InitiateMultipartUploadResult><UploadId>UP1</UploadId></InitiateMultipartUploadResult>',
+            'part-fail',
+            'part-ok',
+            'part-ok-2',
+            '<?xml version="1.0"?><CompleteMultipartUploadResult></CompleteMultipartUploadResult>',
+        ], [
+            'multipart_threshold_mb' => 5,
+            'part_size_mb' => 5,
+            'part_retries' => 1,
+        ]);
+        $client->failStatuses = [1 => 503];
+
+        $client->putFile('big.bin', $path, ['sha256' => hash_file('sha256', $path)]);
+
+        $methods = array_column($client->calls, 'method');
+        $this->assertSame('POST', $methods[0]);
+        $this->assertStringContainsString('uploads=', $client->calls[0]['url']);
+        $this->assertStringContainsString('UNSIGNED-PAYLOAD', $client->calls[2]['headers_blob']);
+        $this->assertStringContainsString('uploadId=UP1', $client->calls[4]['url']);
+        @unlink($path);
+    }
+
+    public function testMultipartAbortOnFailure()
+    {
+        $path = sys_get_temp_dir() . '/mx-s3-abort-' . bin2hex(random_bytes(4));
+        file_put_contents($path, str_repeat('c', 6 * 1048576));
+        $client = $this->client([
+            '<?xml version="1.0"?><InitiateMultipartUploadResult><UploadId>UP2</UploadId></InitiateMultipartUploadResult>',
+            'part-fail',
+        ], [
+            'multipart_threshold_mb' => 5,
+            'part_size_mb' => 5,
+            'part_retries' => 0,
+        ]);
+        $client->failStatuses = [1 => 500];
+
+        try {
+            $client->putFile('fail.bin', $path);
+            $this->fail('Ожидалось исключение multipart');
+        } catch (RuntimeException $e) {
+            $this->assertStringContainsString('HTTP 500', $e->getMessage());
+        }
+
+        $last = end($client->calls);
+        $this->assertSame('DELETE', $last['method']);
+        $this->assertStringContainsString('uploadId=UP2', $last['url']);
+        @unlink($path);
+    }
+
     /**
      * @param string|array<int, string> $response
-     * @param array<string, string>     $extra
+     * @param array<string, mixed>      $extra
      */
     private function client($response = '', array $extra = [])
     {
@@ -145,8 +213,17 @@ final class RecordingS3Client extends S3Client
     /** @var int */
     public $status = 200;
 
+    /** @var array<int, int> Индекс вызова => HTTP-статус ошибки. */
+    public $failStatuses = [];
+
+    /** @var array<int, array{method: string, url: string, headers_blob: string}> */
+    public $calls = [];
+
     /** @var array<int, string> */
     private $responses;
+
+    /** @var int */
+    private $callIndex = 0;
 
     public function __construct(array $config, CredentialProvider $credentials, $response)
     {
@@ -166,30 +243,54 @@ final class RecordingS3Client extends S3Client
         return '';
     }
 
-    protected function send($method, $url, array $headers, $uploadFile, $sink, callable $checkpoint = null, ProgressInterface $progress = null)
-    {
+    protected function send(
+        $method,
+        $url,
+        array $headers,
+        $uploadFile,
+        $sink,
+        callable $checkpoint = null,
+        ProgressInterface $progress = null,
+        $body = null
+    ) {
         $this->lastUrl = $url;
         $this->lastHeaders = $headers;
+        $this->lastResponseHeaders = [];
+        $this->calls[] = [
+            'method' => $method,
+            'url' => $url,
+            'headers_blob' => implode("\n", $headers),
+        ];
+        $index = $this->callIndex++;
+
         // Сети здесь нет, значит и байтам взяться неоткуда: отмечаем размер
         // файла разом, чтобы стадия выгрузки закрывалась заполненной.
-        if ($progress && $uploadFile !== null && is_file($uploadFile)) {
-            $progress->advance((int) filesize($uploadFile));
+        if ($progress) {
+            if (is_array($uploadFile) && isset($uploadFile['length'])) {
+                $progress->advance((int) $uploadFile['length']);
+            } elseif (is_string($uploadFile) && is_file($uploadFile)) {
+                $progress->advance((int) filesize($uploadFile));
+            }
         }
 
-        if ($this->status < 200 || $this->status >= 300) {
-            $body = count($this->responses) > 1 ? array_shift($this->responses) : $this->responses[0];
+        $status = array_key_exists($index, $this->failStatuses) ? (int) $this->failStatuses[$index] : $this->status;
+        if ($status < 200 || $status >= 300) {
+            $errorBody = count($this->responses) > 1 ? array_shift($this->responses) : $this->responses[0];
 
-            throw new RuntimeException('S3 ответил HTTP ' . $this->status . $this->explainBody($body));
+            throw new RuntimeException('S3 ответил HTTP ' . $status . $this->explainBody($errorBody));
         }
 
-        $body = count($this->responses) > 1 ? array_shift($this->responses) : $this->responses[0];
+        $responseBody = count($this->responses) > 1 ? array_shift($this->responses) : $this->responses[0];
+        if (strpos($url, 'partNumber=') !== false) {
+            $this->lastResponseHeaders['etag'] = '"etag-' . $index . '"';
+        }
         if ($sink !== null) {
-            fwrite($sink, $body);
+            fwrite($sink, $responseBody);
 
             return '';
         }
 
-        return $body;
+        return $responseBody;
     }
 
     /**
