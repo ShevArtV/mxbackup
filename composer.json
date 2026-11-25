@@ -7,6 +7,8 @@
     "php": ">=7.4"
   },
   "require-dev": {
+    "modx/revolution": "2.8.9-pl",
+    "phpstan/phpstan": "^2.1",
     "phpunit/phpunit": "^9.6"
   },
   "autoload": {
@@ -24,5 +26,16 @@
       "php": "7.4.33"
     },
     "sort-packages": true
+  },
+  "scripts": {
+    "test": "phpunit",
+    "analyse": "phpstan analyse --no-progress --memory-limit=2G",
+    "check": [
+      "@test",
+      "@analyse"
+    ]
+  },
+  "scripts-descriptions": {
+    "check": "Тесты + статический анализ; обязательно перед сборкой transport"
   }
 }

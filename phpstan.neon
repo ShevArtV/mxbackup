@@ -1,0 +1,40 @@
+# Статический анализ пакета: ловит вызовы с неверными типами и числом
+# аргументов, неизвестные классы и методы (1.9.0-rc: TypeError в
+# Modx2\DatabaseAdapter). Запуск — composer check, обязателен перед сборкой.
+parameters:
+    level: 5
+    phpVersion: 70400
+    paths:
+        - core/components/mxbackup
+        - assets/components/mxbackup
+    scanDirectories:
+        - vendor/modx/revolution/core/model/modx
+        - vendor/modx/revolution/core/xpdo
+    bootstrapFiles:
+        - tests/phpstan-bootstrap.php
+    ignoreErrors:
+        # Пути ядра MODX известны только на установленном сайте.
+        - identifier: requireOnce.fileNotFound
+        # Коннектор: modConnectorRequest::handleRequest() принимает массив опций,
+        # а $modx->request объявлен базовым modRequest.
+        -
+            identifier: arguments.count
+            path: assets/components/mxbackup/connector.php
+        # ZipArchive без шифрования/атрибутов бывает на старых сборках libzip,
+        # а заглушки PHPStan считают методы всегда существующими.
+        - identifier: function.alreadyNarrowedType
+          message: '#method_exists\(\) with .?ZipArchive#'
+        # Отмену бросают колбэки ($tick, выгрузка) уже после finalize():
+        # PHPStan не видит исключения из замыканий.
+        -
+            message: '#^(Left side of && is always false|If condition is always true)\.$#'
+            path: core/components/mxbackup/src/Core/BackupRunner.php
+        # strlen как фильтр пустых сегментов пути — корректно в PHP 7.4.
+        -
+            identifier: argument.type
+            message: '#array_filter expects .*strlen#'
+            path: core/components/mxbackup/src/Core/Masking/JsonPathMasker.php
+        # zip-stat всегда содержит name/size; isset — защита для старых libzip.
+        -
+            identifier: isset.offset
+            path: core/components/mxbackup/src/Core/Restore/ArchiveReader.php
