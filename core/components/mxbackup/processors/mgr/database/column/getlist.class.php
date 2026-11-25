@@ -12,7 +12,7 @@ class mxBackupDatabaseColumnGetListProcessor extends modProcessor
         $config = (new \MxBackup\Platform\Modx2\ProfileRepository($this->modx))
             ->getStore()->find($profileId);
         if (!$config) return $this->failure($this->modx->lexicon('mxbackup_profile_not_found'));
-        $database = new \MxBackup\Platform\Modx2\DatabaseAdapter($this->modx);
+        $database = (new \MxBackup\Platform\Modx2\Modx2Platform($this->modx))->database();
         if (!in_array($table, $database->listTables(), true)) {
             return $this->failure($this->modx->lexicon('mxbackup_table_not_found'));
         }

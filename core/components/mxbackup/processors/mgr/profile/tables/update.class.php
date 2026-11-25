@@ -11,7 +11,7 @@ class mxBackupProfileTablesUpdateProcessor extends modProcessor
         $profileName = (string) $this->getProperty('profile_id');
         $config = $store->find($profileName);
         if (!$config) return $this->failure($this->modx->lexicon('mxbackup_profile_not_found'));
-        $database = new \MxBackup\Platform\Modx2\DatabaseAdapter($this->modx);
+        $database = (new \MxBackup\Platform\Modx2\Modx2Platform($this->modx))->database();
         $editor = new \MxBackup\Core\Config\ProfileEditor();
         $available = $database->listTables();
         $selected = $editor->selection($config, $available);

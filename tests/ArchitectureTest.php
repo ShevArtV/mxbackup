@@ -18,6 +18,21 @@ final class ArchitectureTest extends TestCase
         }
     }
 
+    /**
+     * Адаптер базы и история запусков принимают Connection, а не modX:
+     * процессоры берут их только через Modx2Platform (TypeError в 1.9.0-rc).
+     */
+    public function testProcessorsGetDatabaseAdapterFromPlatform()
+    {
+        $root = dirname(__DIR__) . '/core/components/mxbackup/processors';
+        $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS));
+        foreach ($iterator as $file) {
+            if ($file->getExtension() !== 'php') continue;
+            $source = file_get_contents($file->getPathname());
+            self::assertDoesNotMatchRegularExpression('/new\s+\\\\?(?:MxBackup\\\\Platform\\\\Modx2\\\\)?(?:DatabaseAdapter|RunRepository)\s*\(/', $source, $file->getPathname());
+        }
+    }
+
     public function testManagerSettingsUsePostSafeFieldNames()
     {
         $root = dirname(__DIR__);
